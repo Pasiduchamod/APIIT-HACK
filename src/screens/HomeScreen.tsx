@@ -238,12 +238,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     const getAidStatusDisplay = (status?: string) => {
       switch (status) {
         case 'taking action':
-          return { text: '🚨 Aid In Progress', color: '#2196f3', emoji: '🔵' };
+          return { text: 'Aid In Progress', color: '#2196f3', emoji: '' };
         case 'completed':
-          return { text: '✅ Aid Received', color: '#4caf50', emoji: '✅' };
+          return { text: 'Aid Received', color: '#4caf50', emoji: '' };
         case 'pending':
         default:
-          return { text: '⏳ Pending', color: '#ffa726', emoji: '⏳' };
+          return { text: 'Pending', color: '#ffa726', emoji: '' };
       }
     };
 
@@ -298,7 +298,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             style={styles.markReceivedButton}
             onPress={handleMarkAsReceived}
           >
-            <Text style={styles.markReceivedButtonText}>✅ Mark as Received</Text>
+            <Text style={styles.markReceivedButtonText}>Mark as Received</Text>
           </TouchableOpacity>
         )}
         <View style={styles.syncBadge}>
@@ -347,14 +347,14 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       {/* Sync Status */}
       {syncStatus === 'syncing' && (
         <View style={styles.syncingBanner}>
-          <Text style={styles.syncingText}>🔄 Syncing data...</Text>
+          <Text style={styles.syncingText}>Syncing data...</Text>
         </View>
       )}
 
       {/* Update Received Banner */}
       {showUpdateBanner && (
         <View style={styles.updateBanner}>
-          <Text style={styles.updateBannerText}>✅ Status updates received from server</Text>
+          <Text style={styles.updateBannerText}>Status updates received from server</Text>
         </View>
       )}
 
