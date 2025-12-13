@@ -133,7 +133,6 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
         longitude: position.coords.longitude,
       });
     } catch (error) {
-      console.error('Location error:', error);
       Alert.alert('Location Error', 'Could not get your location.');
     } finally {
       setIsLoadingLocation(false);
@@ -154,12 +153,6 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
   };
 
   const handleSubmit = async () => {
-    console.log('=== Aid Request Submit Started ===');
-    console.log('Location:', location);
-    console.log('Selected Aid Types:', selectedAidTypes);
-    console.log('Priority Level:', priorityLevel);
-    console.log('Description:', description);
-
     if (!location) {
       Alert.alert('Missing Location', 'Please wait for GPS location.');
       return;
@@ -188,7 +181,6 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
     setIsSaving(true);
     try {
       const aidRequestId = uuidv4();
-      console.log('Generated Aid Request ID:', aidRequestId);
 
       // Create aid request in database
       const aidRequestData = {
@@ -204,16 +196,13 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
         contact_number: contactNumber.trim(),
         number_of_people: parseInt(numberOfPeople),
       };
-      console.log('Aid Request Data:', aidRequestData);
 
       await dbService.createAidRequest(aidRequestData);
-      console.log('✓ Aid request saved to database');
 
       // Sync to cloud if online
       if (isOnline) {
-        console.log('Starting cloud sync...');
         cloudSyncService.syncToCloud().catch((err) => {
-          console.error('Cloud sync error:', err);
+          // Sync error will be handled by sync service
         });
       }
 
@@ -236,9 +225,7 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
       setContactNumber('');
       setNumberOfPeople('');
       getCurrentLocation();
-      console.log('=== Aid Request Submit Completed ===');
     } catch (e) {
-      console.error('Error saving aid request:', e);
       Alert.alert('Error', `Failed to save aid request: ${e}`);
     } finally {
       setIsSaving(false);

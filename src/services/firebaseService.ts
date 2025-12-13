@@ -184,8 +184,10 @@ class FirebaseService {
       const incidents: FirebaseIncident[] = [];
 
       querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        console.log(`[FIREBASE] Incident ${doc.id.substring(0, 8)}: actionStatus=${data.actionStatus}`);
         incidents.push({
-          ...doc.data(),
+          ...data,
           id: doc.id,
         } as FirebaseIncident);
       });

@@ -83,7 +83,6 @@ export default function CampFormScreen({ navigation }: CampFormScreenProps) {
         longitude: position.coords.longitude,
       });
     } catch (error) {
-      console.error('Location error:', error);
       Alert.alert('Location Error', 'Could not get your location.');
     } finally {
       setIsLoadingLocation(false);
@@ -157,7 +156,6 @@ export default function CampFormScreen({ navigation }: CampFormScreenProps) {
         ]
       );
     } catch (error: any) {
-      console.error('Error submitting camp:', error);
       Alert.alert('Error', error.message || 'Failed to submit camp');
     } finally {
       setIsSubmitting(false);

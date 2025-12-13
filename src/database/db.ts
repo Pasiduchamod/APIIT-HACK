@@ -426,6 +426,8 @@ class DatabaseService {
 
   // Helper to parse incident row with JSON arrays (handles both old string format and new array format)
   private parseIncidentRow(row: any): Incident {
+    console.log(`[DB] Parsing incident ${row.id?.substring(0, 8)}: actionStatus=${row.actionStatus}`);
+    
     const parseImageField = (field: any): any[] => {
       if (!field) return [];
       if (typeof field === 'string') {

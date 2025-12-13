@@ -21,53 +21,37 @@ export async function initializeFirebase(): Promise<{
   const errors: string[] = [];
 
   try {
-    console.log('🚀 Starting Firebase initialization...');
-    
     // Mark as initializing to prevent auto-sync during startup
     cloudSyncService.setInitializing(true);
 
     // Step 1: Verify local database is initialized
     try {
       if (!dbService.isInitialized()) {
-        console.log('⏳ Waiting for local database initialization...');
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
-      console.log('✅ Local database ready');
     } catch (error) {
       errors.push('Local database initialization failed');
-      console.error(error);
     }
 
     // Step 2: Check if user is authenticated
     try {
       const user = await TokenStorage.getUser();
-      if (!user) {
-        console.warn(
-          '⚠️ User not authenticated. Firebase sync will start after login.'
-        );
-      } else {
-        console.log(`✅ User authenticated: ${user.username}`);
-      }
     } catch (error) {
-      console.warn('Could not check user auth:', error);
+      // Silent error
     }
 
     // Step 3: Test Firebase connection
     try {
       const count = await firebaseService.getIncidentCount();
-      console.log(`✅ Firebase connected. Total incidents: ${count}`);
     } catch (error) {
       errors.push('Firebase connection failed');
-      console.error('Firebase connection error:', error);
     }
 
     // Step 4: Start auto-sync
     try {
       cloudSyncService.startAutoSync(60000); // 60 seconds interval
-      console.log('✅ Auto-sync enabled (60 second interval)');
     } catch (error) {
       errors.push('Auto-sync initialization failed');
-      console.error(error);
     }
 
     // Step 5: Set up sync status listener
@@ -77,25 +61,19 @@ export async function initializeFirebase(): Promise<{
     try {
       const user = await TokenStorage.getUser();
       if (user) {
-        console.log('📤 Performing initial sync...');
         const syncResult = await cloudSyncService.syncToCloud();
-        if (syncResult.success) {
-          console.log(`✅ Initial sync complete. Synced ${syncResult.synced} incidents`);
-        }
       }
     } catch (error) {
-      console.warn('Initial sync failed (will retry automatically):', error);
-    } finally {
+      // Silent error
+    } finally{
       // Clear initialization flag
       cloudSyncService.setInitializing(false);
     }
 
     // Final status
     if (errors.length === 0) {
-      console.log('✅ Firebase initialization successful!');
       return { success: true, errors: [] };
     } else {
-      console.warn('⚠️ Firebase initialization completed with errors:', errors);
       return { success: false, errors };
     }
   } catch (error: any) {
@@ -115,22 +93,12 @@ function setupSyncStatusListener() {
       lastStatus = status;
       switch (status) {
         case 'syncing':
-          console.log('📤 [SYNC] Uploading data to cloud...');
-          break;
         case 'downloading':
-          console.log('📥 [SYNC] Downloading data from cloud...');
-          break;
         case 'success':
-          console.log('✅ [SYNC] Successfully synced with cloud');
-          break;
         case 'error':
-          console.error('❌ [SYNC] Sync operation failed');
-          break;
         case 'offline':
-          console.warn('📵 [SYNC] Offline mode - will sync when online');
-          break;
         case 'idle':
-          // Skip logging idle state to reduce noise
+          // Silent - no logs
           break;
       }
     }
@@ -143,16 +111,9 @@ function setupSyncStatusListener() {
  */
 export async function manualSync(): Promise<void> {
   try {
-    console.log('🔄 Starting manual sync...');
     const result = await cloudSyncService.syncToCloud();
-
-    if (result.success) {
-      console.log(`✅ Manual sync successful. Synced ${result.synced} incidents`);
-    } else {
-      console.error(`❌ Manual sync failed: ${result.error}`);
-    }
   } catch (error) {
-    console.error('Error during manual sync:', error);
+    // Silent error
   }
 }
 
@@ -162,14 +123,9 @@ export async function manualSync(): Promise<void> {
  */
 export async function fullSync(): Promise<void> {
   try {
-    console.log('🔄 Starting full bi-directional sync...');
     const result = await cloudSyncService.fullSync();
-
-    console.log(`📊 Sync complete:`);
-    console.log(`  - Downloaded: ${result.downloaded}`);
-    console.log(`  - Synced: ${result.synced}`);
   } catch (error) {
-    console.error('Full sync failed:', error);
+    // Silent error
   }
 }
 
