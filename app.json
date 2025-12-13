@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Project Aegis",
+    "slug": "project-aegis",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.projectaegis.app"
+    },
+    "android": {
+      "package": "com.projectaegis.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Project Aegis to use your location to record incident coordinates."
+        }
+      ]
+    ]
+  }
+}

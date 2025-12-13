@@ -1,0 +1,14 @@
+// API Configuration
+export const API_BASE_URL = 'http://localhost:3000/api';
+
+// Change this to your computer's IP address for testing on physical devices
+// Example: export const API_BASE_URL = 'http://192.168.1.100:3000/api';
+
+export const INCIDENT_TYPES = [
+  'Landslide',
+  'Flood',
+  'Road Block',
+  'Power Line Down',
+] as const;
+
+export type IncidentType = typeof INCIDENT_TYPES[number];
