@@ -17,6 +17,7 @@ import {
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import HelpModal from '../components/HelpModal';
+import LocationPicker from '../components/LocationPicker';
 import { INCIDENT_TYPES, IncidentType } from '../constants/config';
 import { dbService } from '../database/db';
 import { cloudSyncService } from '../services/cloudSyncService';
@@ -449,22 +450,13 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
           ))}
         </View>
 
-        <Text style={styles.label}>Location *</Text>
-        <View style={styles.locationContainer}>
-          {isLoadingLocation ? (
-            <ActivityIndicator />
-          ) : location ? (
-            <>
-              <Text>Lat: {location.latitude.toFixed(6)}</Text>
-              <Text>Lng: {location.longitude.toFixed(6)}</Text>
-            </>
-          ) : (
-            <Text style={{ color: 'red' }}>Location not available</Text>
-          )}
-          <TouchableOpacity onPress={getCurrentLocation} style={styles.refreshButton}>
-            <Text style={{ color: '#fff' }}>Refresh</Text>
-          </TouchableOpacity>
-        </View>
+        <LocationPicker
+          location={location}
+          isOnline={isOnline}
+          isLoadingLocation={isLoadingLocation}
+          onLocationChange={setLocation}
+          onRefresh={getCurrentLocation}
+        />
 
         <Text style={styles.label}>Photos (Optional - up to {MAX_IMAGES})</Text>
         <View style={styles.imageContainer}>
