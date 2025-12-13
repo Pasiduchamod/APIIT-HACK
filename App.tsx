@@ -6,9 +6,11 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import 'react-native-get-random-values';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import AidRequestFormScreen from './src/screens/AidRequestFormScreen';
+import CampFormScreen from './src/screens/CampFormScreen';
+import CampsListScreen from './src/screens/CampsListScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import IncidentFormScreen from './src/screens/IncidentFormScreen';
-import AidRequestFormScreen from './src/screens/AidRequestFormScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import { initializeApp } from './src/utils/appInitializer';
@@ -77,6 +79,28 @@ function Navigation() {
               options={{
                 headerShown: true,
                 title: 'Request Aid',
+                headerStyle: {
+                  backgroundColor: '#1a1a2e',
+                },
+                headerTintColor: '#fff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen 
+              name="CampsList" 
+              component={CampsListScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="CampForm" 
+              component={CampFormScreen}
+              options={{
+                headerShown: true,
+                title: 'Add New Camp',
                 headerStyle: {
                   backgroundColor: '#1a1a2e',
                 },

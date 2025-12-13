@@ -21,6 +21,25 @@ export interface Incident {
   imageQualities?: ('none' | 'low' | 'high')[]; // Current qualities in cloud
 }
 
+// Define DetentionCamp interface for type safety
+export interface DetentionCamp {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  capacity: number;
+  current_occupancy: number;
+  facilities: string; // JSON string array
+  campStatus: 'operational' | 'full' | 'closed';
+  contact_person?: string;
+  contact_phone?: string;
+  description?: string;
+  status: 'pending' | 'synced' | 'failed'; // Sync status
+  adminApproved: boolean; // Admin approval status
+  created_at: number;
+  updated_at: number;
+}
+
 class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
   private initialized = false;
@@ -89,6 +108,27 @@ class DatabaseService {
         );
       `);
 
+      // Create detention_camps table
+      await this.db.execAsync(`
+        CREATE TABLE IF NOT EXISTS detention_camps (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          latitude REAL NOT NULL,
+          longitude REAL NOT NULL,
+          capacity INTEGER NOT NULL,
+          current_occupancy INTEGER NOT NULL DEFAULT 0,
+          facilities TEXT NOT NULL,
+          campStatus TEXT NOT NULL DEFAULT 'operational',
+          contact_person TEXT,
+          contact_phone TEXT,
+          description TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          adminApproved INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
       // Migration: Add image columns to existing databases
       await this.migrateImageColumns();
 
@@ -117,6 +157,14 @@ class DatabaseService {
       // Create index on aid_requests status for efficient querying
       await this.db.execAsync(`
         CREATE INDEX IF NOT EXISTS idx_aid_requests_status ON aid_requests(status);
+      `);
+
+      // Create index on detention_camps status and approval for efficient querying
+      await this.db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_camps_status ON detention_camps(status);
+      `);
+      await this.db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_camps_approved ON detention_camps(adminApproved);
       `);
 
       console.log('✓ Tables created successfully');
@@ -665,7 +713,7 @@ class DatabaseService {
 
     try {
       const result = await this.db.getAllAsync<AidRequest>(
-        "SELECT * FROM aid_requests WHERE status = 'pending' OR status = 'failed' ORDER BY created_at ASC"
+        "SELECT * FROM aid_requests WHERE status = 'pending' OR status = 'failed' OR status = 'unsynced' ORDER BY created_at ASC"
       );
       return result || [];
     } catch (error) {
@@ -680,7 +728,7 @@ class DatabaseService {
 
     try {
       const result = await this.db.getFirstAsync<{ count: number }>(
-        "SELECT COUNT(*) as count FROM aid_requests WHERE status = 'pending' OR status = 'failed'"
+        "SELECT COUNT(*) as count FROM aid_requests WHERE status = 'pending' OR status = 'failed' OR status = 'unsynced'"
       );
       return result?.count ?? 0;
     } catch (error) {
@@ -729,16 +777,18 @@ class DatabaseService {
   // Update aid request aidStatus
   async updateAidRequestAidStatus(
     id: string,
-    aidStatus: 'pending' | 'taking action' | 'completed'
+    aidStatus: 'pending' | 'taking action' | 'completed',
+    markForSync: boolean = true
   ): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
     try {
+      const newStatus = markForSync ? 'unsynced' : 'synced';
       await this.db.runAsync(
         'UPDATE aid_requests SET aidStatus = ?, status = ?, updated_at = ? WHERE id = ?',
-        [aidStatus, 'unsynced', Date.now(), id]
+        [aidStatus, newStatus, Date.now(), id]
       );
-      console.log(`✓ Updated aid request ${id} aidStatus to ${aidStatus} and marked for sync`);
+      console.log(`✓ Updated aid request ${id} aidStatus to ${aidStatus}${markForSync ? ' and marked for sync' : ''}`);
     } catch (error) {
       console.error('Error updating aid request aidStatus:', error);
       throw error;
@@ -769,6 +819,270 @@ class DatabaseService {
       await this.db.runAsync('DELETE FROM aid_requests WHERE id = ?', [id]);
     } catch (error) {
       console.error('Error deleting aid request:', error);
+      throw error;
+    }
+  }
+
+  // ===== DETENTION CAMP METHODS =====
+
+  // Add new detention camp
+  async addDetentionCamp(camp: Omit<DetentionCamp, 'id' | 'created_at' | 'updated_at' | 'status' | 'adminApproved'>): Promise<string> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const id = `camp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const now = Date.now();
+
+      await this.db.runAsync(
+        `INSERT INTO detention_camps (
+          id, name, latitude, longitude, capacity, current_occupancy, 
+          facilities, campStatus, contact_person, contact_phone, description,
+          status, adminApproved, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          camp.name,
+          camp.latitude,
+          camp.longitude,
+          camp.capacity,
+          camp.current_occupancy,
+          camp.facilities,
+          camp.campStatus,
+          camp.contact_person || null,
+          camp.contact_phone || null,
+          camp.description || null,
+          'pending', // New camps start as pending
+          0, // Not admin approved by default
+          now,
+          now,
+        ]
+      );
+
+      console.log(`✓ Camp added with ID: ${id}`);
+      return id;
+    } catch (error) {
+      console.error('Error adding detention camp:', error);
+      throw error;
+    }
+  }
+
+  // Insert detention camp from Firebase (preserving Firebase ID)
+  async insertDetentionCampFromFirebase(camp: DetentionCamp): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync(
+        `INSERT OR REPLACE INTO detention_camps (
+          id, name, latitude, longitude, capacity, current_occupancy, 
+          facilities, campStatus, contact_person, contact_phone, description,
+          status, adminApproved, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          camp.id,
+          camp.name,
+          camp.latitude,
+          camp.longitude,
+          camp.capacity,
+          camp.current_occupancy,
+          camp.facilities,
+          camp.campStatus,
+          camp.contact_person || null,
+          camp.contact_phone || null,
+          camp.description || null,
+          'synced', // Firebase camps are synced
+          camp.adminApproved ? 1 : 0,
+          camp.created_at,
+          camp.updated_at,
+        ]
+      );
+
+      console.log(`✓ Camp ${camp.id} inserted from Firebase`);
+    } catch (error) {
+      console.error('Error inserting camp from Firebase:', error);
+      throw error;
+    }
+  }
+
+  // Get all detention camps (approved only for regular users)
+  async getAllDetentionCamps(includeUnapproved: boolean = false): Promise<DetentionCamp[]> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      let query = 'SELECT * FROM detention_camps';
+      if (!includeUnapproved) {
+        query += ' WHERE adminApproved = 1';
+      }
+      query += ' ORDER BY created_at DESC';
+
+      const result = await this.db.getAllAsync<any>(query);
+      
+      // Convert adminApproved from number to boolean
+      return (result || []).map(camp => ({
+        ...camp,
+        adminApproved: camp.adminApproved === 1
+      }));
+    } catch (error) {
+      console.error('Error getting all detention camps:', error);
+      throw error;
+    }
+  }
+
+  // Get pending detention camps (for sync)
+  async getPendingDetentionCamps(): Promise<DetentionCamp[]> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getAllAsync<any>(
+        "SELECT * FROM detention_camps WHERE status = 'pending' OR status = 'failed' ORDER BY created_at ASC"
+      );
+      
+      return (result || []).map(camp => ({
+        ...camp,
+        adminApproved: camp.adminApproved === 1
+      }));
+    } catch (error) {
+      console.error('Error getting pending detention camps:', error);
+      throw error;
+    }
+  }
+
+  // Get count of pending detention camps
+  async getPendingDetentionCampsCount(): Promise<number> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getFirstAsync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM detention_camps WHERE status = 'pending' OR status = 'failed'"
+      );
+      return result?.count ?? 0;
+    } catch (error) {
+      console.error('Error getting pending detention camps count:', error);
+      throw error;
+    }
+  }
+
+  // Update detention camp status
+  async updateDetentionCampStatus(
+    id: string,
+    status: 'pending' | 'synced' | 'failed'
+  ): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync(
+        'UPDATE detention_camps SET status = ?, updated_at = ? WHERE id = ?',
+        [status, Date.now(), id]
+      );
+    } catch (error) {
+      console.error('Error updating detention camp status:', error);
+      throw error;
+    }
+  }
+
+  // Update detention camp admin approval status
+  async updateDetentionCampApproval(
+    id: string,
+    adminApproved: boolean
+  ): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync(
+        'UPDATE detention_camps SET adminApproved = ?, updated_at = ? WHERE id = ?',
+        [adminApproved ? 1 : 0, Date.now(), id]
+      );
+      console.log(`✓ Updated camp ${id} approval to ${adminApproved}`);
+    } catch (error) {
+      console.error('Error updating detention camp approval:', error);
+      throw error;
+    }
+  }
+
+  // Get single detention camp by id
+  async getDetentionCampById(id: string): Promise<DetentionCamp | null> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getFirstAsync<any>(
+        'SELECT * FROM detention_camps WHERE id = ?',
+        [id]
+      );
+      
+      if (!result) return null;
+      
+      return {
+        ...result,
+        adminApproved: result.adminApproved === 1
+      };
+    } catch (error) {
+      console.error('Error getting detention camp by id:', error);
+      throw error;
+    }
+  }
+
+  // Update detention camp details
+  async updateDetentionCamp(id: string, updates: Partial<DetentionCamp>): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (updates.name !== undefined) {
+        fields.push('name = ?');
+        values.push(updates.name);
+      }
+      if (updates.capacity !== undefined) {
+        fields.push('capacity = ?');
+        values.push(updates.capacity);
+      }
+      if (updates.current_occupancy !== undefined) {
+        fields.push('current_occupancy = ?');
+        values.push(updates.current_occupancy);
+      }
+      if (updates.facilities !== undefined) {
+        fields.push('facilities = ?');
+        values.push(updates.facilities);
+      }
+      if (updates.campStatus !== undefined) {
+        fields.push('campStatus = ?');
+        values.push(updates.campStatus);
+      }
+      if (updates.contact_person !== undefined) {
+        fields.push('contact_person = ?');
+        values.push(updates.contact_person);
+      }
+      if (updates.contact_phone !== undefined) {
+        fields.push('contact_phone = ?');
+        values.push(updates.contact_phone);
+      }
+      if (updates.description !== undefined) {
+        fields.push('description = ?');
+        values.push(updates.description);
+      }
+
+      fields.push('updated_at = ?');
+      values.push(Date.now());
+      values.push(id);
+
+      await this.db.runAsync(
+        `UPDATE detention_camps SET ${fields.join(', ')} WHERE id = ?`,
+        values
+      );
+    } catch (error) {
+      console.error('Error updating detention camp:', error);
+      throw error;
+    }
+  }
+
+  // Delete detention camp
+  async deleteDetentionCamp(id: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync('DELETE FROM detention_camps WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error deleting detention camp:', error);
       throw error;
     }
   }
