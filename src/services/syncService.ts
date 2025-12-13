@@ -1,9 +1,7 @@
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
-import { database } from '../database';
-import Incident from '../database/models/Incident';
 import { API_BASE_URL } from '../constants/config';
+import { dbService, Incident } from '../database/db';
 import { AuthService } from './authService';
-import { Q } from '@nozbe/watermelondb';
 
 export class SyncService {
   private static instance: SyncService;
@@ -24,11 +22,14 @@ export class SyncService {
   private initNetworkListener() {
     // Listen to network state changes
     NetInfo.addEventListener((state: NetInfoState) => {
-      if (state.isConnected && state.isInternetReachable) {
-        console.log('✓ Network connection restored. Initiating sync...');
-        this.syncIncidents();
-      } else {
-        console.log('⚠ Network connection lost. Operating in offline mode.');
+      // Only sync if database is initialized
+      if (dbService.isInitialized()) {
+        if (state.isConnected && state.isInternetReachable) {
+          console.log('✓ Network connection restored. Initiating sync...');
+          this.syncIncidents();
+        } else {
+          console.log('⚠ Network connection lost. Operating in offline mode.');
+        }
       }
     });
   }
@@ -52,6 +53,12 @@ export class SyncService {
     }
 
     try {
+      // Check if database is initialized
+      if (!dbService.isInitialized()) {
+        console.log('Database not yet initialized, skipping sync...');
+        return { success: false, synced: 0, error: 'Database not initialized' };
+      }
+
       this.isSyncing = true;
       this.notifyListeners('syncing');
 
@@ -63,28 +70,25 @@ export class SyncService {
         return { success: false, synced: 0, error: 'No internet connection' };
       }
 
-      // Get unsynced incidents from WatermelonDB
-      const unsyncedIncidents = await database
-        .get<Incident>('incidents')
-        .query(Q.where('is_synced', false))
-        .fetch();
+      // Get pending and failed incidents from SQLite
+      const pendingIncidents = await dbService.getPendingIncidents();
 
-      if (unsyncedIncidents.length === 0) {
+      if (pendingIncidents.length === 0) {
         console.log('No incidents to sync.');
         this.notifyListeners('idle');
         return { success: true, synced: 0 };
       }
 
-      console.log(`Found ${unsyncedIncidents.length} unsynced incidents. Syncing...`);
+      console.log(`Found ${pendingIncidents.length} unsynced incidents. Syncing...`);
 
       // Prepare incident data for API
-      const incidentData = unsyncedIncidents.map(incident => ({
+      const incidentData = pendingIncidents.map(incident => ({
         id: incident.id,
         type: incident.type,
         severity: incident.severity,
         latitude: incident.latitude,
         longitude: incident.longitude,
-        timestamp: incident.timestamp.toISOString(),
+        timestamp: new Date(incident.timestamp).toISOString(),
       }));
 
       // Get auth header
@@ -102,19 +106,21 @@ export class SyncService {
 
       if (!response.ok) {
         const error = await response.json();
+        // Mark incidents as failed
+        await dbService.updateIncidentsStatus(
+          pendingIncidents.map(i => i.id),
+          'failed'
+        );
         throw new Error(error.error || 'Sync failed');
       }
 
       const result = await response.json();
 
       // Mark incidents as synced in local database
-      await database.write(async () => {
-        for (const incident of unsyncedIncidents) {
-          await incident.update(record => {
-            record.isSynced = true;
-          });
-        }
-      });
+      await dbService.updateIncidentsStatus(
+        pendingIncidents.map(i => i.id),
+        'synced'
+      );
 
       console.log(`✓ Successfully synced ${result.synced} incidents`);
       this.notifyListeners('success');
@@ -129,19 +135,12 @@ export class SyncService {
     }
   }
 
-  async getUnsyncedCount(): Promise<number> {
-    const count = await database
-      .get<Incident>('incidents')
-      .query(Q.where('is_synced', false))
-      .fetchCount();
-    return count;
+  async getPendingCount(): Promise<number> {
+    return await dbService.getPendingCount();
   }
 
   async getAllIncidents(): Promise<Incident[]> {
-    return await database
-      .get<Incident>('incidents')
-      .query(Q.sortBy('timestamp', Q.desc))
-      .fetch();
+    return await dbService.getAllIncidents();
   }
 }
 

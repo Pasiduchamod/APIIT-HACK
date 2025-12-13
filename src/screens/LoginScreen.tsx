@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -79,9 +79,15 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.infoBox}>
-            <Text style={styles.infoText}>Default Credentials:</Text>
+            <Text style={styles.infoText}>🌐 Online Mode (Server Required):</Text>
             <Text style={styles.infoText}>Username: responder</Text>
             <Text style={styles.infoText}>Password: responder123</Text>
+            
+            <Text style={[styles.infoText, { marginTop: 12, fontWeight: 'bold' }]}>
+              📱 Offline Demo Mode:
+            </Text>
+            <Text style={styles.infoText}>Username: demo</Text>
+            <Text style={styles.infoText}>Password: demo</Text>
           </View>
         </View>
       </View>
