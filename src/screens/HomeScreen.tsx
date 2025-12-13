@@ -207,8 +207,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   };
 
   const renderIncident = ({ item }: { item: Incident }) => {
-    console.log(`[RENDER] Incident ${item.id.substring(0, 8)}: actionStatus=${item.actionStatus}`);
-    
     const getActionStatusDisplay = (status?: string) => {
       switch (status) {
         case 'taking action':

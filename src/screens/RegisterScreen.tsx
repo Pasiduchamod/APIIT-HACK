@@ -1,3 +1,4 @@
+import { Picker } from '@react-native-picker/picker';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,8 +13,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../contexts/AuthContext';
+import { generateOTP, sendOTPEmail, storeOTP, validateEmail, verifyOTP } from '../services/otpService';
 
 const SRI_LANKA_DISTRICTS = [
   'Select District',
@@ -50,18 +51,30 @@ interface RegisterScreenProps {
 
 export default function RegisterScreen({ navigation }: RegisterScreenProps) {
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [district, setDistrict] = useState('Select District');
   const [isLoading, setIsLoading] = useState(false);
+  const [showOTPInput, setShowOTPInput] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [sentOTP, setSentOTP] = useState('');
   const { register } = useAuth();
 
-  const handleRegister = async () => {
+  const handleSendOTP = async () => {
     // Validation
     if (!name.trim()) {
       Alert.alert('Error', 'Please enter your name');
+      return;
+    }
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email');
+      return;
+    }
+    if (!validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
     if (!username.trim()) {
@@ -70,6 +83,10 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     }
     if (!password.trim()) {
       Alert.alert('Error', 'Please enter a password');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
       return;
     }
     if (password !== confirmPassword) {
@@ -87,17 +104,85 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
     setIsLoading(true);
     try {
+      // Generate and send OTP
+      const otp = generateOTP();
+      const sent = await sendOTPEmail(email, otp, name);
+      
+      if (sent) {
+        storeOTP(email, otp);
+        setSentOTP(otp);
+        setShowOTPInput(true);
+        Alert.alert(
+          'OTP Sent',
+          `A verification code has been sent to ${email}. Please check your email and enter the code below.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to send verification email. Please check your email address and try again.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to send OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (!otpCode.trim()) {
+      Alert.alert('Error', 'Please enter the verification code');
+      return;
+    }
+
+    if (otpCode.length !== 6) {
+      Alert.alert('Error', 'Verification code must be 6 digits');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Verify OTP
+      const isValid = verifyOTP(email, otpCode);
+      
+      if (!isValid) {
+        Alert.alert('Error', 'Invalid or expired verification code. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // OTP verified, proceed with registration
       await register({
         name,
+        email,
         username,
         password,
         contactNumber,
         district,
       });
-      Alert.alert('Success', 'Registration successful!');
-      // Navigation handled by AuthContext state change
+      
+      Alert.alert('Success', 'Registration successful! You can now login with your credentials.');
+      navigation.navigate('Login');
     } catch (error: any) {
       Alert.alert('Registration Failed', error.message || 'Could not create account');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setIsLoading(true);
+    try {
+      const otp = generateOTP();
+      const sent = await sendOTPEmail(email, otp, name);
+      
+      if (sent) {
+        storeOTP(email, otp);
+        setSentOTP(otp);
+        Alert.alert('Success', 'A new verification code has been sent to your email');
+      } else {
+        Alert.alert('Error', 'Failed to resend verification email');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to resend OTP');
     } finally {
       setIsLoading(false);
     }
@@ -132,7 +217,18 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
-            editable={!isLoading}
+            editable={!isLoading && !showOTPInput}
+          />
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Email Address"
+            placeholderTextColor="#666"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            editable={!isLoading && !showOTPInput}
           />
           
           <TextInput
@@ -142,7 +238,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
-            editable={!isLoading}
+            editable={!isLoading && !showOTPInput}
           />
           
           <TextInput
@@ -152,7 +248,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            editable={!isLoading}
+            editable={!isLoading && !showOTPInput}
           />
           
           <TextInput
@@ -162,7 +258,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
-            editable={!isLoading}
+            editable={!isLoading && !showOTPInput}
           />
           
           <TextInput
@@ -172,7 +268,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={contactNumber}
             onChangeText={setContactNumber}
             keyboardType="phone-pad"
-            editable={!isLoading}
+            editable={!isLoading && !showOTPInput}
           />
           
           <View style={styles.pickerWrapper}>
@@ -181,7 +277,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                 selectedValue={district}
                 onValueChange={(itemValue) => setDistrict(itemValue)}
                 style={styles.picker}
-                enabled={!isLoading}
+                enabled={!isLoading && !showOTPInput}
               >
                 {SRI_LANKA_DISTRICTS.map((dist) => (
                   <Picker.Item 
@@ -195,17 +291,55 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleRegister}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Register</Text>
-            )}
-          </TouchableOpacity>
+          {showOTPInput && (
+            <View style={styles.otpContainer}>
+              <Text style={styles.otpLabel}>Enter Verification Code</Text>
+              <Text style={styles.otpSubtext}>We've sent a 6-digit code to {email}</Text>
+              <TextInput
+                style={styles.otpInput}
+                placeholder="000000"
+                placeholderTextColor="#666"
+                value={otpCode}
+                onChangeText={setOtpCode}
+                keyboardType="number-pad"
+                maxLength={6}
+                editable={!isLoading}
+              />
+              <TouchableOpacity
+                style={styles.resendButton}
+                onPress={handleResendOTP}
+                disabled={isLoading}
+              >
+                <Text style={styles.resendButtonText}>Resend Code</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {!showOTPInput ? (
+            <TouchableOpacity
+              style={[styles.button, isLoading && styles.buttonDisabled]}
+              onPress={handleSendOTP}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Send Verification Code</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.button, isLoading && styles.buttonDisabled]}
+              onPress={handleVerifyOTP}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Verify & Register</Text>
+              )}
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.backButton}
@@ -307,6 +441,47 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#e94560',
     fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  otpContainer: {
+    backgroundColor: '#2a2a40',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 15,
+    borderWidth: 2,
+    borderColor: '#e94560',
+  },
+  otpLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  otpSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  otpInput: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 8,
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    letterSpacing: 8,
+    marginBottom: 10,
+  },
+  resendButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  resendButtonText: {
+    color: '#e94560',
+    fontSize: 14,
+    fontWeight: '600',
     textDecorationLine: 'underline',
   },
 });
