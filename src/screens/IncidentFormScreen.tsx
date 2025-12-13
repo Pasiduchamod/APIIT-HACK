@@ -1,16 +1,16 @@
 import NetInfo from '@react-native-community/netinfo';
 import { Picker } from '@react-native-picker/picker';
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
@@ -30,29 +30,93 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
   const [isSaving, setIsSaving] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
+  // Android GPS watcher refs
+  const watchRef = useRef<Location.LocationSubscription | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     getCurrentLocation();
-    
-    // Monitor network status
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOnline(state.isConnected ?? false);
+
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const online = (state.isInternetReachable ?? state.isConnected) ?? false;
+      setIsOnline(online);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      cleanupWatcher();
+    };
   }, []);
 
+  const cleanupWatcher = () => {
+    if (watchRef.current) {
+      watchRef.current.remove();
+      watchRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
   const getCurrentLocation = async () => {
+    cleanupWatcher();
+
     try {
       setIsLoadingLocation(true);
-      
-      // Request location permission
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to record incident location.');
+
+      // 1️⃣ GPS enabled?
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        Alert.alert('Location Services Off', 'Please enable GPS to continue.');
         return;
       }
 
-      // Get current position
+      // 2️⃣ Permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required.');
+        return;
+      }
+
+      // 3️⃣ FAST: last known (offline-safe)
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      if (lastKnown?.coords) {
+        setLocation({
+          latitude: lastKnown.coords.latitude,
+          longitude: lastKnown.coords.longitude,
+        });
+      }
+
+      // 4️⃣ ANDROID: wait for satellite fix (OFFLINE SAFE)
+      if (Platform.OS === 'android') {
+        watchRef.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 1000,
+            distanceInterval: 1,
+          },
+          (pos) => {
+            setLocation({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+            });
+            cleanupWatcher(); // stop after first fix
+          }
+        );
+
+        // Safety timeout (avoid endless waiting)
+        timeoutRef.current = setTimeout(() => {
+          cleanupWatcher();
+          if (!location) {
+            Alert.alert('Location Error', 'Unable to get GPS fix. Try again.');
+          }
+        }, 15000);
+
+        return;
+      }
+
+      // 5️⃣ iOS (simple)
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
@@ -62,8 +126,8 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
         longitude: position.coords.longitude,
       });
     } catch (error) {
-      console.error('Error getting location:', error);
-      Alert.alert('Location Error', 'Could not get your location. Please try again.');
+      console.error('Location error:', error);
+      Alert.alert('Location Error', 'Could not get your location.');
     } finally {
       setIsLoadingLocation(false);
     }
@@ -71,52 +135,37 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
 
   const handleSubmit = async () => {
     if (!location) {
-      Alert.alert('Missing Location', 'Please wait for location to be acquired.');
+      Alert.alert('Missing Location', 'Please wait for GPS location.');
       return;
     }
 
     setIsSaving(true);
     try {
-      // Save to local SQLite database
       const incidentId = uuidv4();
-      const now = Date.now();
-      
+
       await dbService.createIncident({
         id: incidentId,
         type: incidentType,
-        severity: severity,
+        severity,
         latitude: location.latitude,
         longitude: location.longitude,
-        timestamp: now,
+        timestamp: Date.now(),
         status: 'pending',
       });
 
-      console.log('✓ Incident saved locally');
-
-      // Show appropriate message based on network status
       if (isOnline) {
-        Alert.alert(
-          'Incident Saved',
-          'Incident saved locally and will sync automatically.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
-        // Trigger sync
-        syncService.syncIncidents();
-      } else {
-        Alert.alert(
-          'Saved Locally (Offline)',
-          'No internet connection. Incident saved locally and will sync when connection is restored.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
+        syncService.syncIncidents().catch(() => {});
       }
 
-      // Reset form
+      Alert.alert('Saved', 'Incident saved successfully.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+
       setIncidentType('Landslide');
       setSeverity(3);
       getCurrentLocation();
-    } catch (error) {
-      console.error('Error saving incident:', error);
-      Alert.alert('Error', 'Failed to save incident. Please try again.');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to save incident.');
     } finally {
       setIsSaving(false);
     }
@@ -132,148 +181,89 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
       </View>
 
       <View style={styles.form}>
-        {/* Incident Type */}
         <Text style={styles.label}>Incident Type *</Text>
         <View style={styles.pickerContainer}>
           <Picker
             selectedValue={incidentType}
-            onValueChange={(itemValue) => setIncidentType(itemValue as IncidentType)}
+            onValueChange={(v) => setIncidentType(v as IncidentType)}
             style={styles.picker}
           >
-            {INCIDENT_TYPES.map(type => (
-              <Picker.Item key={type} label={type} value={type} />
+            {INCIDENT_TYPES.map((t) => (
+              <Picker.Item key={t} label={t} value={t} />
             ))}
           </Picker>
         </View>
 
-        {/* Severity */}
         <Text style={styles.label}>Severity: {severity}</Text>
         <View style={styles.severityContainer}>
-          {[1, 2, 3, 4, 5].map(level => (
+          {[1, 2, 3, 4, 5].map((lvl) => (
             <TouchableOpacity
-              key={level}
+              key={lvl}
               style={[
                 styles.severityButton,
-                severity === level && styles.severityButtonActive,
-                { backgroundColor: getSeverityColor(level, severity === level) },
+                severity === lvl && styles.severityButtonActive,
+                { backgroundColor: getSeverityColor(lvl, severity === lvl) },
               ]}
-              onPress={() => setSeverity(level)}
+              onPress={() => setSeverity(lvl)}
             >
-              <Text style={styles.severityButtonText}>{level}</Text>
+              <Text style={{ color: severity === lvl ? '#fff' : '#000', fontWeight: 'bold' }}>
+                {lvl}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Location */}
-        <Text style={styles.label}>Location (GPS) *</Text>
+        <Text style={styles.label}>Location *</Text>
         <View style={styles.locationContainer}>
           {isLoadingLocation ? (
-            <ActivityIndicator size="small" color="#e94560" />
+            <ActivityIndicator />
           ) : location ? (
             <>
-              <Text style={styles.locationText}>
-                Lat: {location.latitude.toFixed(6)}
-              </Text>
-              <Text style={styles.locationText}>
-                Lng: {location.longitude.toFixed(6)}
-              </Text>
+              <Text>Lat: {location.latitude.toFixed(6)}</Text>
+              <Text>Lng: {location.longitude.toFixed(6)}</Text>
             </>
           ) : (
-            <Text style={styles.locationError}>Location not available</Text>
+            <Text style={{ color: 'red' }}>Location not available</Text>
           )}
           <TouchableOpacity onPress={getCurrentLocation} style={styles.refreshButton}>
-            <Text style={styles.refreshButtonText}>Refresh</Text>
+            <Text style={{ color: '#fff' }}>Refresh</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Submit Button */}
         <TouchableOpacity
-          style={[styles.submitButton, (isSaving || !location) && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (!location || isSaving) && { opacity: 0.5 }]}
+          disabled={!location || isSaving}
           onPress={handleSubmit}
-          disabled={isSaving || !location}
         >
-          {isSaving ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitButtonText}>Save Incident</Text>
-          )}
+          {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Save Incident</Text>}
         </TouchableOpacity>
-
-        {!isOnline && (
-          <View style={styles.offlineWarning}>
-            <Text style={styles.offlineWarningText}>
-              ⚠ You are offline. Data will be saved locally and synced when connection is restored.
-            </Text>
-          </View>
-        )}
       </View>
     </ScrollView>
   );
 }
 
-const getSeverityColor = (level: number, isActive: boolean): string => {
-  const colors = ['#4caf50', '#8bc34a', '#ffc107', '#ff9800', '#f44336'];
-  return isActive ? colors[level - 1] : '#e0e0e0';
-};
+const getSeverityColor = (level: number, active: boolean) =>
+  active ? ['#4caf50', '#8bc34a', '#ffc107', '#ff9800', '#f44336'][level - 1] : '#e0e0e0';
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: {
     backgroundColor: '#1a1a2e',
     padding: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  onlineBadge: {
-    backgroundColor: '#4caf50',
-  },
-  offlineBadge: {
-    backgroundColor: '#f44336',
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  form: {
-    padding: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-    marginTop: 15,
-  },
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  picker: {
-    height: 50,
-  },
-  severityContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
+  title: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+  statusBadge: { padding: 6, borderRadius: 12 },
+  onlineBadge: { backgroundColor: '#4caf50' },
+  offlineBadge: { backgroundColor: '#f44336' },
+  statusText: { color: '#fff', fontSize: 12 },
+  form: { padding: 20 },
+  label: { fontWeight: 'bold', marginTop: 15 },
+  pickerContainer: { backgroundColor: '#fff', borderRadius: 8 },
+  picker: { height: 52 },
+  severityContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   severityButton: {
     width: 60,
     height: 60,
@@ -281,71 +271,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#ddd',
   },
-  severityButtonActive: {
-    borderColor: '#1a1a2e',
-    borderWidth: 3,
-  },
-  severityButtonText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  locationContainer: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  locationText: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 5,
-  },
-  locationError: {
-    fontSize: 14,
-    color: '#f44336',
-  },
+  severityButtonActive: { borderColor: '#1a1a2e' },
+  locationContainer: { backgroundColor: '#fff', padding: 15, borderRadius: 8 },
   refreshButton: {
     marginTop: 10,
-    padding: 8,
+    padding: 10,
     backgroundColor: '#e94560',
-    borderRadius: 4,
     alignItems: 'center',
-  },
-  refreshButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    borderRadius: 6,
   },
   submitButton: {
-    backgroundColor: '#e94560',
+    marginTop: 30,
     padding: 18,
+    backgroundColor: '#e94560',
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 30,
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  offlineWarning: {
-    marginTop: 15,
-    padding: 12,
-    backgroundColor: '#fff3cd',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ffc107',
-  },
-  offlineWarningText: {
-    color: '#856404',
-    fontSize: 12,
-    textAlign: 'center',
-  },
+  submitText: { color: '#fff', fontWeight: 'bold' },
 });
