@@ -17,11 +17,31 @@ import { useAuth } from '../contexts/AuthContext';
 
 const SRI_LANKA_DISTRICTS = [
   'Select District',
+  'Ampara',
+  'Anuradhapura',
+  'Badulla',
+  'Batticaloa',
   'Colombo',
+  'Galle',
   'Gampaha',
+  'Hambantota',
+  'Jaffna',
   'Kalutara',
   'Kandy',
-  'Galle',
+  'Kegalle',
+  'Kilinochchi',
+  'Kurunegala',
+  'Mannar',
+  'Matale',
+  'Matara',
+  'Monaragala',
+  'Mullaitivu',
+  'Nuwara Eliya',
+  'Polonnaruwa',
+  'Puttalam',
+  'Ratnapura',
+  'Trincomalee',
+  'Vavuniya',
 ];
 
 interface RegisterScreenProps {
@@ -108,6 +128,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
           <TextInput
             style={styles.input}
             placeholder="Full Name"
+            placeholderTextColor="#666"
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
@@ -117,6 +138,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
           <TextInput
             style={styles.input}
             placeholder="Username"
+            placeholderTextColor="#666"
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
@@ -126,6 +148,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
           <TextInput
             style={styles.input}
             placeholder="Password"
+            placeholderTextColor="#666"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -135,6 +158,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
           <TextInput
             style={styles.input}
             placeholder="Confirm Password"
+            placeholderTextColor="#666"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
@@ -144,6 +168,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
           <TextInput
             style={styles.input}
             placeholder="Contact Number"
+            placeholderTextColor="#666"
             value={contactNumber}
             onChangeText={setContactNumber}
             keyboardType="phone-pad"
