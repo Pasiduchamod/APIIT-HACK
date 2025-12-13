@@ -241,6 +241,16 @@ export class ImageSyncService {
         imageQualities: ['low'],
       });
 
+      // Update Firebase Firestore with cloudImageUrls immediately
+      try {
+        const { firebaseService } = await import('./firebaseService');
+        await firebaseService.updateIncidentImages(incident.id, [downloadUrl], ['low']);
+        console.log('✓ Firebase Firestore updated with low-quality image URLs');
+      } catch (firestoreError) {
+        console.warn('⚠ Failed to update Firestore with low-quality image URLs:', firestoreError);
+        // Don't fail the whole operation - image is already in Storage
+      }
+
       console.log('✅ Low-quality image uploaded successfully');
       return {
         incidentId: incident.id,
@@ -296,6 +306,16 @@ export class ImageSyncService {
         imageQualities: ['high'],
       });
 
+      // Update Firebase Firestore with cloudImageUrls immediately
+      try {
+        const { firebaseService } = await import('./firebaseService');
+        await firebaseService.updateIncidentImages(incident.id, [downloadUrl], ['high']);
+        console.log('✓ Firebase Firestore updated with image URLs');
+      } catch (firestoreError) {
+        console.warn('⚠ Failed to update Firestore with image URLs:', firestoreError);
+        // Don't fail the whole operation - image is already in Storage
+      }
+
       console.log('✅ High-quality image uploaded successfully');
       return {
         incidentId: incident.id,
@@ -350,6 +370,16 @@ export class ImageSyncService {
         imageQualities: ['high'],
       });
 
+      // Update Firebase Firestore with cloudImageUrls immediately
+      try {
+        const { firebaseService } = await import('./firebaseService');
+        await firebaseService.updateIncidentImages(incident.id, [downloadUrl], ['high']);
+        console.log('✓ Firebase Firestore updated with upgraded image URLs');
+      } catch (firestoreError) {
+        console.warn('⚠ Failed to update Firestore with upgraded image URLs:', firestoreError);
+        // Don't fail the whole operation - image is already in Storage
+      }
+
       console.log('✅ Successfully upgraded to high-quality image');
       return {
         incidentId: incident.id,
@@ -390,12 +420,20 @@ export class ImageSyncService {
       }
 
       console.log(`📸 Found ${incidents.length} incident(s) with pending images`);
+      
+      // Log details about pending images
+      incidents.forEach(incident => {
+        console.log(`  - Incident ${incident.id}:`);
+        console.log(`    Local URIs: ${incident.localImageUris?.length || 0} images`);
+        console.log(`    Upload statuses: ${JSON.stringify(incident.imageUploadStatuses)}`);
+      });
 
       const results: SyncResult[] = [];
 
       for (const incident of incidents) {
         const result = await this.syncIncidentImage(incident.id);
         results.push(result);
+        console.log(`  Result for ${incident.id}: ${result.action} (${result.success ? 'success' : 'failed'})`);
       }
 
       const successful = results.filter((r) => r.success).length;

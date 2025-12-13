@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
     ActivityIndicator,
     Alert,
@@ -13,11 +14,25 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function LoginScreen() {
+interface LoginScreenProps {
+  navigation: any;
+}
+
+export default function LoginScreen({ navigation }: LoginScreenProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const { login } = useAuth();
+
+  useEffect(() => {
+    // Monitor network status
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOnline(state.isConnected ?? false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -53,6 +68,13 @@ export default function LoginScreen() {
           <Text style={styles.title}>LankaSafe</Text>
           <Text style={styles.subtitle}>Disaster Management System</Text>
           <Text style={styles.location}>Sri Lanka</Text>
+          
+          {/* Connection Status */}
+          <View style={[styles.statusBadge, isOnline ? styles.onlineBadge : styles.offlineBadge]}>
+            <Text style={styles.statusText}>
+              {isOnline ? '● Online' : '● Offline Mode'}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.form}>
@@ -86,17 +108,39 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <View style={styles.infoBox}>
-            <Text style={styles.infoText}>🌐 Online Mode (Server Required):</Text>
-            <Text style={styles.infoText}>Username: responder</Text>
-            <Text style={styles.infoText}>Password: responder123</Text>
-            
-            <Text style={[styles.infoText, { marginTop: 12, fontWeight: 'bold' }]}>
-              📱 Offline Demo Mode:
-            </Text>
-            <Text style={styles.infoText}>Username: demo</Text>
-            <Text style={styles.infoText}>Password: demo</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate('Register')}
+            disabled={isLoading || !isOnline}
+          >
+            <Text style={styles.secondaryButtonText}>Create New Account</Text>
+          </TouchableOpacity>
+
+          {isOnline && (
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>🌐 Online Mode:</Text>
+              <Text style={styles.infoText}>• Login with your credentials</Text>
+              <Text style={styles.infoText}>• Or create a new account</Text>
+              
+              <Text style={[styles.infoText, { marginTop: 12, fontWeight: 'bold' }]}>
+                📱 Quick Demo:
+              </Text>
+              <Text style={styles.infoText}>Username: demo / Password: demo</Text>
+            </View>
+          )}
+          
+          {!isOnline && (
+            <View style={styles.offlineBox}>
+              <Text style={styles.offlineTitle}>📱 Offline Mode</Text>
+              <Text style={styles.offlineText}>
+                No internet connection detected. You can still use the app to record incidents locally.
+                Data will sync when connection is restored.
+              </Text>
+              <Text style={[styles.offlineText, { marginTop: 8, fontWeight: 'bold' }]}>
+                Demo credentials: demo / demo
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -188,5 +232,55 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     marginBottom: 2,
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 2,
+    borderColor: '#e94560',
+  },
+  secondaryButtonText: {
+    color: '#e94560',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  statusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 15,
+  },
+  onlineBadge: {
+    backgroundColor: '#4caf50',
+  },
+  offlineBadge: {
+    backgroundColor: '#ff9800',
+  },
+  statusText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  offlineBox: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ff9800',
+  },
+  offlineTitle: {
+    color: '#ff9800',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  offlineText: {
+    color: '#fff',
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

@@ -6,12 +6,23 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface RegisterData {
+  name: string;
+  username: string;
+  password: string;
+  contactNumber: string;
+  district: string;
+}
+
 export interface AuthResponse {
   success: boolean;
   token: string;
   user: {
     id: number;
     username: string;
+    name?: string;
+    contactNumber?: string;
+    district?: string;
   };
 }
 
@@ -61,6 +72,34 @@ export const AuthService = {
         return demoResponse;
       }
       
+      throw error;
+    }
+  },
+
+  async register(userData: RegisterData): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Registration failed');
+      }
+
+      const data: AuthResponse = await response.json();
+      
+      // Save token and user data to secure storage
+      await TokenStorage.saveToken(data.token);
+      await TokenStorage.saveUser(data.user);
+
+      return data;
+    } catch (error: any) {
+      console.error('Registration failed:', error.message);
       throw error;
     }
   },

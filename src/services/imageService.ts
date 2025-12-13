@@ -227,9 +227,10 @@ export class ImageService {
       const filename = `${incidentId}_${quality}.jpg`;
       const destinationFile = new File(directory, filename);
 
-      // Copy file to permanent location
+      // Read source and write to destination
       const sourceFile = new File(sourceUri);
-      await sourceFile.copy(destinationFile);
+      const content = await sourceFile.base64();
+      await destinationFile.write(content, { encoding: 'base64' });
 
       console.log(`✓ Image saved locally: ${quality} - ${filename}`);
       return destinationFile.uri;

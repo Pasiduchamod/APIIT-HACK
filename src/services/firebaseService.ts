@@ -292,6 +292,33 @@ class FirebaseService {
   }
 
   /**
+   * UPDATE: Update incident image URLs
+   * Call this after uploading images to Firebase Storage
+   */
+  async updateIncidentImages(
+    incidentId: string,
+    cloudImageUrls: string[],
+    imageQualities: string[]
+  ): Promise<void> {
+    try {
+      const incidentRef = doc(db, this.incidentsCollection, incidentId);
+      await withTimeout(
+        updateDoc(incidentRef, {
+          cloudImageUrls,
+          imageQualities,
+          updated_at: Timestamp.now().toMillis(),
+        }),
+        8000,
+        `Update incident images ${incidentId}`
+      );
+      console.log('✓ Incident images updated in Firestore:', incidentId);
+    } catch (error) {
+      console.error('Error updating incident images:', error);
+      throw error;
+    }
+  }
+
+  /**
    * DELETE: Remove incident (soft delete - mark as deleted)
    */
   async deleteIncident(incidentId: string): Promise<void> {

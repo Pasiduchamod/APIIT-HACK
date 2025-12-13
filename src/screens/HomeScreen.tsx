@@ -16,6 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Incident, dbService } from '../database/db';
 import { AidRequest } from '../database/models/AidRequest';
 import { cloudSyncService } from '../services/cloudSyncService';
+import { imageSyncService } from '../services/imageSyncService';
 
 interface HomeScreenProps {
   navigation: any;
@@ -30,6 +31,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [isOnline, setIsOnline] = useState(true);
   const [syncStatus, setSyncStatus] = useState('idle');
   const [activeTab, setActiveTab] = useState<'incidents' | 'aidRequests'>('incidents');
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   // Refresh incidents whenever screen comes into focus (e.g., returning from IncidentForm)
   useFocusEffect(
@@ -56,9 +59,30 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
     cloudSyncService.addSyncListener(handleSyncStatus);
 
+    // Auto-refresh every 5 seconds to get Firebase updates
+    const autoRefreshInterval = setInterval(async () => {
+      try {
+        if (!dbService.isInitialized()) return;
+        
+        const netInfo = await NetInfo.fetch();
+        if (netInfo.isConnected && netInfo.isInternetReachable) {
+          console.log('🔄 Auto-refreshing from Firebase...');
+          const result = await cloudSyncService.syncFromCloud();
+          if (result.downloaded > 0) {
+            console.log(`📥 Auto-refresh: ${result.downloaded} updates received`);
+            await loadData();
+            setLastSyncTime(new Date());
+          }
+        }
+      } catch (error) {
+        console.error('Auto-refresh error:', error);
+      }
+    }, 5000); // 5 seconds
+
     return () => {
       netInfoUnsubscribe();
       cloudSyncService.removeSyncListener(handleSyncStatus);
+      clearInterval(autoRefreshInterval);
     };
   }, []);
 
@@ -89,11 +113,29 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    if (isOnline) {
-      await cloudSyncService.fullSync();
+    try {
+      if (isOnline) {
+        console.log('🔄 Starting full sync (pull from cloud + push to cloud)...');
+        const result = await cloudSyncService.fullSync();
+        console.log(`✓ Sync complete: ${result.downloaded} downloaded, ${result.synced} uploaded`);
+        setLastSyncTime(new Date());
+        
+        // Also sync images after data sync
+        console.log('📸 Syncing images...');
+        await imageSyncService.syncAllPendingImages();
+        
+        if (result.downloaded > 0) {
+          console.log('📥 Action status updates received from Firebase');
+          setShowUpdateBanner(true);
+          setTimeout(() => setShowUpdateBanner(false), 3000);
+        }
+      }
+      await loadData();
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setIsRefreshing(false);
     }
-    await loadData();
-    setIsRefreshing(false);
   };
 
   const handleManualSync = async () => {
@@ -102,12 +144,36 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       return;
     }
 
-    const result = await cloudSyncService.syncToCloud();
-    if (result.success) {
-      Alert.alert('Success', `Synced ${result.synced} item(s)`);
-      loadData();
-    } else {
-      Alert.alert('Sync Failed', result.error || 'Unknown error');
+    try {
+      setIsRefreshing(true);
+      
+      // Check for pending images first
+      const pendingIncidents = await dbService.getIncidentsWithPendingImages();
+      console.log(`📸 Found ${pendingIncidents.length} incidents with pending images`);
+      
+      // Sync data first
+      const result = await cloudSyncService.syncToCloud();
+      setLastSyncTime(new Date());
+      
+      // Then sync images
+      console.log('📸 Syncing images...');
+      const imageResults = await imageSyncService.syncAllPendingImages();
+      const imagesSynced = imageResults.filter(r => r.success).length;
+      
+      if (result.success) {
+        Alert.alert(
+          'Success', 
+          `Synced ${result.synced} incident(s) and ${imagesSynced} image(s)`
+        );
+        loadData();
+      } else {
+        Alert.alert('Sync Failed', result.error || 'Unknown error');
+      }
+    } catch (error: any) {
+      console.error('Manual sync error:', error);
+      Alert.alert('Sync Error', error.message || 'Failed to sync');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -125,13 +191,13 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const renderIncident = ({ item }: { item: Incident }) => {
     const getActionStatusDisplay = (status?: string) => {
       switch (status) {
-        case 'taking_action':
-          return { text: '🚨 Action In Progress', color: '#ff9800' };
+        case 'taking action':
+          return { text: '🚨 Action In Progress', color: '#ff9800', emoji: '🔵' };
         case 'completed':
-          return { text: '✅ Completed', color: '#4caf50' };
+          return { text: '✅ Completed', color: '#4caf50', emoji: '✅' };
         case 'pending':
         default:
-          return { text: '⏳ Pending Action', color: '#999' };
+          return { text: '⏳ Pending Action', color: '#999', emoji: '⏳' };
       }
     };
 
@@ -153,7 +219,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </Text>
         <View style={styles.actionStatusContainer}>
           <View style={[styles.actionStatusBadge, { backgroundColor: actionStatus.color }]}>
-            <Text style={styles.actionStatusText}>{actionStatus.text}</Text>
+            <Text style={styles.actionStatusText}>{actionStatus.emoji} {actionStatus.text}</Text>
           </View>
         </View>
         <View style={styles.syncBadge}>
@@ -168,6 +234,32 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const renderAidRequest = ({ item }: { item: AidRequest }) => {
     const aidTypes = JSON.parse(item.aid_types) as string[];
     const primaryAidType = aidTypes[0] || 'Aid Request';
+    
+    const getAidStatusDisplay = (status?: string) => {
+      switch (status) {
+        case 'taking action':
+          return { text: '🚨 Aid In Progress', color: '#2196f3', emoji: '🔵' };
+        case 'completed':
+          return { text: '✅ Aid Received', color: '#4caf50', emoji: '✅' };
+        case 'pending':
+        default:
+          return { text: '⏳ Pending', color: '#ffa726', emoji: '⏳' };
+      }
+    };
+
+    const aidStatus = getAidStatusDisplay(item.aidStatus);
+
+    const handleMarkAsReceived = async () => {
+      try {
+        await dbService.updateAidRequestAidStatus(item.id, 'completed');
+        await loadData();
+        Alert.alert('Success', 'Aid marked as received! Thank you for confirming.');
+      } catch (error) {
+        console.error('Failed to update aid status:', error);
+        Alert.alert('Error', 'Failed to update aid status');
+      }
+    };
+
     return (
       <View style={styles.incidentCard}>
         <View style={styles.incidentHeader}>
@@ -196,6 +288,19 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         <Text style={styles.incidentTime}>
           {new Date(item.created_at).toLocaleString()}
         </Text>
+        <View style={styles.actionStatusContainer}>
+          <View style={[styles.actionStatusBadge, { backgroundColor: aidStatus.color }]}>
+            <Text style={styles.actionStatusText}>{aidStatus.emoji} {aidStatus.text}</Text>
+          </View>
+        </View>
+        {item.aidStatus === 'taking action' && (
+          <TouchableOpacity
+            style={styles.markReceivedButton}
+            onPress={handleMarkAsReceived}
+          >
+            <Text style={styles.markReceivedButtonText}>✅ Mark as Received</Text>
+          </TouchableOpacity>
+        )}
         <View style={styles.syncBadge}>
           <Text style={[styles.syncText, item.status === 'synced' ? styles.synced : item.status === 'failed' ? styles.failed : styles.unsynced]}>
             {item.status === 'synced' ? '✓ Synced' : item.status === 'failed' ? '⚠ Failed' : '⏳ Pending Sync'}
@@ -212,6 +317,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         <View>
           <Text style={styles.headerTitle}>LankaSafe</Text>
           <Text style={styles.headerSubtitle}>Welcome, {user?.username}</Text>
+          {lastSyncTime && (
+            <Text style={styles.lastSyncText}>
+              Last sync: {lastSyncTime.toLocaleTimeString()}
+            </Text>
+          )}
         </View>
         <View style={[styles.statusBadge, isOnline ? styles.onlineBadge : styles.offlineBadge]}>
           <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
@@ -237,7 +347,14 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       {/* Sync Status */}
       {syncStatus === 'syncing' && (
         <View style={styles.syncingBanner}>
-          <Text style={styles.syncingText}> Syncing data...</Text>
+          <Text style={styles.syncingText}>🔄 Syncing data...</Text>
+        </View>
+      )}
+
+      {/* Update Received Banner */}
+      {showUpdateBanner && (
+        <View style={styles.updateBanner}>
+          <Text style={styles.updateBannerText}>✅ Status updates received from server</Text>
         </View>
       )}
 
@@ -366,6 +483,12 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 4,
   },
+  lastSyncText: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -416,6 +539,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   syncingText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  updateBanner: {
+    backgroundColor: '#4caf50',
+    padding: 12,
+    alignItems: 'center',
+  },
+  updateBannerText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
@@ -544,13 +677,28 @@ const styles = StyleSheet.create({
   },
   actionStatusBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   actionStatusText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  markReceivedButton: {
+    marginTop: 10,
+    backgroundColor: '#4caf50',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  markReceivedButtonText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: 'bold',
   },
   emptyContainer: {

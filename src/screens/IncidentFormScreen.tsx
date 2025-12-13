@@ -285,6 +285,10 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
       // Sync incident data to cloud
       if (isOnline) {
         cloudSyncService.syncToCloud().catch(() => {});
+        // Also try to sync images immediately
+        imageSyncService.syncAllPendingImages().catch(() => {});
+      } else {
+        console.log('📴 Offline mode: Incident and images saved locally. Will sync when online.');
       }
 
       Alert.alert('Saved', 'Incident saved successfully.', [

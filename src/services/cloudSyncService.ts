@@ -3,6 +3,7 @@ import { dbService, Incident } from '../database/db';
 import { AidRequest } from '../database/models/AidRequest';
 import { firebaseService } from './firebaseService';
 import { TokenStorage } from './tokenStorage';
+import { imageSyncService } from './imageSyncService';
 
 /**
  * CloudSyncService handles bi-directional synchronization between
@@ -41,7 +42,11 @@ export class CloudSyncService {
           this.networkSyncTimeout = setTimeout(() => {
             console.log('✓ Network connection restored. Initiating bi-directional sync...');
             // Wrap sync in try-catch to prevent crashes
-            this.fullSync().catch((error) => {
+            this.fullSync().then(() => {
+              // Also sync images after data sync
+              console.log('📸 Syncing images after network restore...');
+              imageSyncService.syncAllPendingImages();
+            }).catch((error) => {
               console.error('Auto-sync failed after network restore:', error);
               // Don't crash - just log the error
             });
@@ -178,6 +183,10 @@ export class CloudSyncService {
             await dbService.updateIncidentsStatus(syncedIds, 'synced');
             console.log(`✓ Successfully synced ${syncResult.success} incidents to Firebase`);
             totalSynced += syncResult.success;
+            
+            // Trigger image sync for synced incidents
+            console.log('📸 Starting image sync for synced incidents...');
+            await imageSyncService.syncAllPendingImages();
           }
 
           if (syncResult.failed > 0) {
@@ -245,16 +254,14 @@ export class CloudSyncService {
         return { success: false, downloaded: 0, error: 'User not authenticated' };
       }
 
-      console.log('Pulling incidents from Firebase...');
+      console.log('Pulling data from Firebase...');
       this.notifyListeners('downloading');
 
-      // Get incidents from Firebase for this user
-      const cloudIncidents = await firebaseService.getIncidentsByUser(user.id.toString());
+      let totalDownloaded = 0;
+      let totalUpdated = 0;
 
-      if (cloudIncidents.length === 0) {
-        console.log('No incidents to download from Firebase.');
-        return { success: true, downloaded: 0 };
-      }
+      // ===== Sync Incidents =====
+      const cloudIncidents = await firebaseService.getIncidentsByUser(user.id.toString());
 
       console.log(`Downloading ${cloudIncidents.length} incidents from Firebase...`);
 
@@ -295,12 +302,68 @@ export class CloudSyncService {
         }
       }
 
+      totalDownloaded += downloaded;
+      totalUpdated += updated;
+
       if (updated > 0) {
         console.log(`✓ Updated ${updated} incident action statuses from Firebase`);
       }
       console.log(`✓ Downloaded ${downloaded} new incidents from Firebase`);
+
+      // ===== Sync Aid Requests =====
+      const cloudAidRequests = await firebaseService.getAidRequestsByUser(user.id.toString());
+      
+      console.log(`Downloading ${cloudAidRequests.length} aid requests from Firebase...`);
+
+      let aidDownloaded = 0;
+      let aidUpdated = 0;
+      for (const aidRequest of cloudAidRequests) {
+        try {
+          // Check if aid request exists locally
+          const existing = await dbService.getAidRequestById(aidRequest.id);
+          if (!existing) {
+            // Insert new aid request with aidStatus
+            await dbService.createAidRequest({
+              id: aidRequest.id,
+              aid_types: aidRequest.aid_types,
+              priority_level: aidRequest.priority_level,
+              description: aidRequest.description || '',
+              latitude: aidRequest.latitude,
+              longitude: aidRequest.longitude,
+              status: 'synced',
+              aidStatus: aidRequest.aidStatus || 'pending',
+              requester_name: aidRequest.requester_name || '',
+              contact_number: aidRequest.contact_number || '',
+              number_of_people: aidRequest.number_of_people || 0,
+            });
+            aidDownloaded++;
+          } else {
+            // Check if aidStatus changed in cloud
+            const cloudStatus = aidRequest.aidStatus || 'pending';
+            const localStatus = existing.aidStatus || 'pending';
+            
+            if (cloudStatus !== localStatus) {
+              // Update aidStatus if it changed in cloud
+              await dbService.updateAidRequestAidStatus(aidRequest.id, cloudStatus);
+              console.log(`✓ Updated aid request ${aidRequest.id} aidStatus: ${localStatus} → ${cloudStatus}`);
+              aidUpdated++;
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to download aid request ${aidRequest.id}:`, error);
+        }
+      }
+
+      totalDownloaded += aidDownloaded;
+      totalUpdated += aidUpdated;
+
+      if (aidUpdated > 0) {
+        console.log(`✓ Updated ${aidUpdated} aid request statuses from Firebase`);
+      }
+      console.log(`✓ Downloaded ${aidDownloaded} new aid requests from Firebase`);
+
       this.notifyListeners('success');
-      return { success: true, downloaded: downloaded + updated };
+      return { success: true, downloaded: totalDownloaded + totalUpdated };
     } catch (error: any) {
       console.error('Cloud download error:', error);
       this.notifyListeners('error');

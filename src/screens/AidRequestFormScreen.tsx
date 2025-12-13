@@ -28,6 +28,9 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
   const [currentAidType, setCurrentAidType] = useState<AidType>('Food');
   const [priorityLevel, setPriorityLevel] = useState(3);
   const [description, setDescription] = useState('');
+  const [requesterName, setRequesterName] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+  const [numberOfPeople, setNumberOfPeople] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -166,6 +169,21 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
       return;
     }
 
+    if (!requesterName.trim()) {
+      Alert.alert('Missing Name', 'Please enter your name.');
+      return;
+    }
+
+    if (!contactNumber.trim()) {
+      Alert.alert('Missing Contact', 'Please enter your contact number.');
+      return;
+    }
+
+    if (!numberOfPeople.trim() || isNaN(parseInt(numberOfPeople)) || parseInt(numberOfPeople) < 1) {
+      Alert.alert('Invalid Number', 'Please enter a valid number of people (minimum 1).');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const aidRequestId = uuidv4();
@@ -180,6 +198,9 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
         description: description.trim() || null,
         priority_level: priorityLevel,
         status: 'pending' as const,
+        requester_name: requesterName.trim(),
+        contact_number: contactNumber.trim(),
+        number_of_people: parseInt(numberOfPeople),
       };
       console.log('Aid Request Data:', aidRequestData);
 
@@ -209,6 +230,9 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
       setCurrentAidType('Food');
       setPriorityLevel(3);
       setDescription('');
+      setRequesterName('');
+      setContactNumber('');
+      setNumberOfPeople('');
       getCurrentLocation();
       console.log('=== Aid Request Submit Completed ===');
     } catch (e) {
@@ -281,6 +305,35 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
         </View>
         <Text style={styles.priorityHelp}>1 = Low Priority, 5 = Critical Emergency</Text>
 
+        <Text style={styles.label}>Your Name *</Text>
+        <TextInput
+          style={styles.input}
+          value={requesterName}
+          onChangeText={setRequesterName}
+          placeholder="Enter your full name"
+          placeholderTextColor="#999"
+        />
+
+        <Text style={styles.label}>Contact Number *</Text>
+        <TextInput
+          style={styles.input}
+          value={contactNumber}
+          onChangeText={setContactNumber}
+          placeholder="Enter your phone number"
+          placeholderTextColor="#999"
+          keyboardType="phone-pad"
+        />
+
+        <Text style={styles.label}>Number of People Needing Aid *</Text>
+        <TextInput
+          style={styles.input}
+          value={numberOfPeople}
+          onChangeText={setNumberOfPeople}
+          placeholder="How many people need aid?"
+          placeholderTextColor="#999"
+          keyboardType="number-pad"
+        />
+
         <Text style={styles.label}>Additional Details (Optional)</Text>
         <TextInput
           style={styles.descriptionInput}
@@ -311,8 +364,11 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
         </View>
 
         <TouchableOpacity
-          style={[styles.submitButton, (!location || isSaving || selectedAidTypes.length === 0) && { opacity: 0.5 }]}
-          disabled={!location || isSaving || selectedAidTypes.length === 0}
+          style={[
+            styles.submitButton, 
+            (!location || isSaving || selectedAidTypes.length === 0 || !requesterName.trim() || !contactNumber.trim() || !numberOfPeople.trim()) && { opacity: 0.5 }
+          ]}
+          disabled={!location || isSaving || selectedAidTypes.length === 0 || !requesterName.trim() || !contactNumber.trim() || !numberOfPeople.trim()}
           onPress={handleSubmit}
         >
           {isSaving ? (
@@ -412,6 +468,13 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 5,
     fontStyle: 'italic',
+  },
+  input: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 10,
+    fontSize: 16,
   },
   descriptionInput: {
     backgroundColor: '#fff',

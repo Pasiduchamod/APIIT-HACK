@@ -78,6 +78,10 @@ class DatabaseService {
           description TEXT,
           priority_level INTEGER NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending',
+          aidStatus TEXT NOT NULL DEFAULT 'pending',
+          requester_name TEXT,
+          contact_number TEXT,
+          number_of_people INTEGER,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
         );
@@ -88,6 +92,12 @@ class DatabaseService {
 
       // Migration: Add actionStatus column
       await this.migrateActionStatus();
+
+      // Migration: Add aid request contact fields
+      await this.migrateAidRequestContactFields();
+
+      // Migration: Add aid request aidStatus field
+      await this.migrateAidRequestAidStatus();
 
       // Create index on status for efficient querying of unsynced records
       await this.db.execAsync(`
@@ -171,6 +181,62 @@ class DatabaseService {
       }
     } catch (error) {
       console.error('Error migrating actionStatus column:', error);
+      // Don't throw - if migration fails, it might be because column already exists
+    }
+  }
+
+  /**
+   * Migration: Add contact fields to aid_requests table
+   */
+  private async migrateAidRequestContactFields(): Promise<void> {
+    if (!this.db) return;
+
+    try {
+      const tableInfo = await this.db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(aid_requests);'
+      );
+
+      const columnNames = tableInfo.map((col) => col.name);
+
+      if (!columnNames.includes('requester_name')) {
+        await this.db.execAsync(`ALTER TABLE aid_requests ADD COLUMN requester_name TEXT;`);
+        console.log('✓ Added requester_name column');
+      }
+
+      if (!columnNames.includes('contact_number')) {
+        await this.db.execAsync(`ALTER TABLE aid_requests ADD COLUMN contact_number TEXT;`);
+        console.log('✓ Added contact_number column');
+      }
+
+      if (!columnNames.includes('number_of_people')) {
+        await this.db.execAsync(`ALTER TABLE aid_requests ADD COLUMN number_of_people INTEGER;`);
+        console.log('✓ Added number_of_people column');
+      }
+    } catch (error) {
+      console.error('Error migrating aid request contact fields:', error);
+      // Don't throw - if migration fails, it might be because columns already exist
+    }
+  }
+
+  /**
+   * Migration: Add aidStatus to aid_requests table
+   */
+  private async migrateAidRequestAidStatus(): Promise<void> {
+    if (!this.db) return;
+
+    try {
+      const tableInfo = await this.db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(aid_requests);'
+      );
+
+      const columnNames = tableInfo.map((col) => col.name);
+
+      if (!columnNames.includes('aidStatus')) {
+        await this.db.execAsync(`ALTER TABLE aid_requests ADD COLUMN aidStatus TEXT DEFAULT 'pending';`);
+        console.log('✓ Added aidStatus column to aid_requests');
+      }
+    } catch (error) {
+      console.error('Error migrating aidStatus column:', error);
       // Don't throw - if migration fails, it might be because column already exists
     }
   }
@@ -346,7 +412,7 @@ class DatabaseService {
   // Update incident action status
   async updateIncidentActionStatus(
     id: string,
-    actionStatus: 'pending' | 'taking_action' | 'completed'
+    actionStatus: 'pending' | 'taking action' | 'completed'
   ): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
@@ -477,10 +543,22 @@ class DatabaseService {
       const results = await this.db.getAllAsync<any>(
         `SELECT * FROM incidents 
          WHERE localImageUri IS NOT NULL 
-         AND (imageUploadStatus = 'local_only' OR imageUploadStatus = 'low_uploaded')
+         AND localImageUri != ''
+         AND localImageUri != '[]'
          ORDER BY timestamp DESC`
       );
-      return (results || []).map(this.parseIncidentRow);
+      
+      // Filter for incidents that have pending images (local_only or low_uploaded)
+      const incidents = (results || []).map(this.parseIncidentRow);
+      return incidents.filter(incident => {
+        if (!incident.imageUploadStatuses || incident.imageUploadStatuses.length === 0) {
+          return false;
+        }
+        // Check if any image is still pending upload
+        return incident.imageUploadStatuses.some(
+          status => status === 'local_only' || status === 'low_uploaded'
+        );
+      });
     } catch (error) {
       console.error('Error getting incidents with pending images:', error);
       throw error;
@@ -511,8 +589,8 @@ class DatabaseService {
       await this.db.runAsync(
         `INSERT INTO aid_requests (
           id, aid_types, latitude, longitude, description, priority_level, 
-          status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          status, aidStatus, requester_name, contact_number, number_of_people, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           fullAidRequest.id,
           fullAidRequest.aid_types,
@@ -521,6 +599,10 @@ class DatabaseService {
           fullAidRequest.description,
           fullAidRequest.priority_level,
           fullAidRequest.status,
+          fullAidRequest.aidStatus || 'pending',
+          fullAidRequest.requester_name,
+          fullAidRequest.contact_number,
+          fullAidRequest.number_of_people,
           fullAidRequest.created_at,
           fullAidRequest.updated_at,
         ]
@@ -611,6 +693,25 @@ class DatabaseService {
       );
     } catch (error) {
       console.error('Error updating multiple aid request statuses:', error);
+      throw error;
+    }
+  }
+
+  // Update aid request aidStatus
+  async updateAidRequestAidStatus(
+    id: string,
+    aidStatus: 'pending' | 'taking action' | 'completed'
+  ): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync(
+        'UPDATE aid_requests SET aidStatus = ?, status = ?, updated_at = ? WHERE id = ?',
+        [aidStatus, 'unsynced', Date.now(), id]
+      );
+      console.log(`✓ Updated aid request ${id} aidStatus to ${aidStatus} and marked for sync`);
+    } catch (error) {
+      console.error('Error updating aid request aidStatus:', error);
       throw error;
     }
   }
