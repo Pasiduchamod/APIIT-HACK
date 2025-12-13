@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import NetInfo from '@react-native-community/netinfo';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  RefreshControl,
-  Platform,
-  Alert,
+    Alert,
+    FlatList,
+    Platform,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { Incident } from '../database/db';
 import { syncService } from '../services/syncService';
-import Incident from '../database/models/Incident';
-import NetInfo from '@react-native-community/netinfo';
 
 interface HomeScreenProps {
   navigation: any;
@@ -55,7 +55,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       const allIncidents = await syncService.getAllIncidents();
       setIncidents(allIncidents);
 
-      const count = await syncService.getUnsyncedCount();
+      const count = await syncService.getPendingCount();
       setUnsyncedCount(count);
     } catch (error) {
       console.error('Error loading incidents:', error);
@@ -112,8 +112,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         🕒 {new Date(item.timestamp).toLocaleString()}
       </Text>
       <View style={styles.syncBadge}>
-        <Text style={[styles.syncText, item.isSynced ? styles.synced : styles.unsynced]}>
-          {item.isSynced ? '✓ Synced' : '⏳ Pending Sync'}
+        <Text style={[styles.syncText, item.status === 'synced' ? styles.synced : item.status === 'failed' ? styles.failed : styles.unsynced]}>
+          {item.status === 'synced' ? '✓ Synced' : item.status === 'failed' ? '⚠ Failed' : '⏳ Pending Sync'}
         </Text>
       </View>
     </View>
@@ -377,6 +377,9 @@ const styles = StyleSheet.create({
   },
   synced: {
     color: '#4caf50',
+  },
+  failed: {
+    color: '#f44336',
   },
   unsynced: {
     color: '#ff9800',

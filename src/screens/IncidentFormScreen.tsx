@@ -1,24 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  Platform,
-} from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { Picker } from '@react-native-picker/picker';
 import * as Location from 'expo-location';
-import NetInfo from '@react-native-community/netinfo';
-import { database } from '../database';
-import Incident from '../database/models/Incident';
-import { INCIDENT_TYPES, IncidentType } from '../constants/config';
-import { syncService } from '../services/syncService';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { INCIDENT_TYPES, IncidentType } from '../constants/config';
+import { dbService } from '../database/db';
+import { syncService } from '../services/syncService';
 
 interface IncidentFormScreenProps {
   navigation: any;
@@ -79,17 +77,18 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
 
     setIsSaving(true);
     try {
-      // Save to local WatermelonDB
-      await database.write(async () => {
-        await database.get<Incident>('incidents').create(incident => {
-          incident._raw.id = uuidv4();
-          incident.type = incidentType;
-          incident.severity = severity;
-          incident.latitude = location.latitude;
-          incident.longitude = location.longitude;
-          incident.timestamp = new Date();
-          incident.isSynced = false;
-        });
+      // Save to local SQLite database
+      const incidentId = uuidv4();
+      const now = Date.now();
+      
+      await dbService.createIncident({
+        id: incidentId,
+        type: incidentType,
+        severity: severity,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timestamp: now,
+        status: 'pending',
       });
 
       console.log('✓ Incident saved locally');
