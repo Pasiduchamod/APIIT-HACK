@@ -30,50 +30,55 @@ export interface AuthResponse {
 export const AuthService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Login failed');
-      }
-
-      const data: AuthResponse = await response.json();
+      // First, try to authenticate with Firebase
+      const firebaseUser = await firebaseService.getUserByUsername(credentials.username);
       
-      // Save token and user data to secure storage
-      await TokenStorage.saveToken(data.token);
-      await TokenStorage.saveUser(data.user);
-
-      return data;
-    } catch (error: any) {
-      // Fallback: Allow offline demo login for testing
-      console.warn('Online login failed, attempting offline demo login:', error.message);
-      
-      // Check if credentials are demo credentials
-      if (credentials.username === 'demo' && credentials.password === 'demo') {
-        const demoResponse: AuthResponse = {
+      if (firebaseUser) {
+        // User exists in Firebase
+        const authResponse: AuthResponse = {
           success: true,
-          token: 'demo-token-offline-' + Date.now(),
+          token: `firebase-token-${firebaseUser.id}`,
           user: {
-            id: 1,
-            username: 'demo',
+            id: firebaseUser.id,
+            username: firebaseUser.username,
+            name: firebaseUser.name,
+            contactNumber: firebaseUser.contactNumber,
+            district: firebaseUser.district,
           },
         };
         
-        // Save demo token to secure storage
+        // Save token and user data to secure storage
+        await TokenStorage.saveToken(authResponse.token);
+        await TokenStorage.saveUser(authResponse.user);
+        
+        console.log('✓ Login successful via Firebase');
+        return authResponse;
+      }
+      
+      // If not in Firebase, try demo credentials
+      if (credentials.username === 'demo' && credentials.password === 'demo') {
+        const demoResponse: AuthResponse = {
+          success: true,
+          token: 'demo-token-' + Date.now(),
+          user: {
+            id: 1,
+            username: 'demo',
+            name: 'Demo User',
+          },
+        };
+        
         await TokenStorage.saveToken(demoResponse.token);
         await TokenStorage.saveUser(demoResponse.user);
         
-        console.log('✓ Demo login successful (offline mode)');
+        console.log('✓ Demo login successful');
         return demoResponse;
       }
       
-      throw error;
+      // User not found
+      throw new Error('Invalid username or password');
+    } catch (error: any) {
+      console.error('Login failed:', error.message);
+      throw new Error(error.message || 'Login failed');
     }
   },
 

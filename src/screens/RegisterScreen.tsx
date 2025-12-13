@@ -175,22 +175,24 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             editable={!isLoading}
           />
           
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={district}
-              onValueChange={(itemValue) => setDistrict(itemValue)}
-              style={styles.picker}
-              enabled={!isLoading}
-            >
-              {SRI_LANKA_DISTRICTS.map((dist) => (
-                <Picker.Item 
-                  key={dist} 
-                  label={dist} 
-                  value={dist}
-                  color={dist === 'Select District' ? '#999' : '#000'}
-                />
-              ))}
-            </Picker>
+          <View style={styles.pickerWrapper}>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={district}
+                onValueChange={(itemValue) => setDistrict(itemValue)}
+                style={styles.picker}
+                enabled={!isLoading}
+              >
+                {SRI_LANKA_DISTRICTS.map((dist) => (
+                  <Picker.Item 
+                    key={dist} 
+                    label={dist} 
+                    value={dist}
+                    color="#333"
+                  />
+                ))}
+              </Picker>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -271,14 +273,17 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     fontSize: 16,
   },
+  pickerWrapper: {
+    marginBottom: 15,
+  },
   pickerContainer: {
     backgroundColor: '#fff',
     borderRadius: 8,
-    marginBottom: 15,
     overflow: 'hidden',
   },
   picker: {
-    height: 50,
+    height: Platform.OS === 'ios' ? 200 : 55,
+    width: '100%',
   },
   button: {
     backgroundColor: '#e94560',
