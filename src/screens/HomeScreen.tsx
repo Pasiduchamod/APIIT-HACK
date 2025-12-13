@@ -1,5 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -25,6 +26,13 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [syncStatus, setSyncStatus] = useState('idle');
+
+  // Refresh incidents whenever screen comes into focus (e.g., returning from IncidentForm)
+  useFocusEffect(
+    useCallback(() => {
+      loadIncidents();
+    }, [])
+  );
 
   useEffect(() => {
     loadIncidents();
@@ -106,10 +114,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </View>
       </View>
       <Text style={styles.incidentLocation}>
-        📍 {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
+         {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
       </Text>
       <Text style={styles.incidentTime}>
-        🕒 {new Date(item.timestamp).toLocaleString()}
+         {new Date(item.timestamp).toLocaleString()}
       </Text>
       <View style={styles.syncBadge}>
         <Text style={[styles.syncText, item.status === 'synced' ? styles.synced : item.status === 'failed' ? styles.failed : styles.unsynced]}>
@@ -147,7 +155,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       {/* Sync Status */}
       {syncStatus === 'syncing' && (
         <View style={styles.syncingBanner}>
-          <Text style={styles.syncingText}>🔄 Syncing data...</Text>
+          <Text style={styles.syncingText}> Syncing data...</Text>
         </View>
       )}
 
@@ -165,7 +173,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             onPress={handleManualSync}
             disabled={!isOnline}
           >
-            <Text style={styles.secondaryButtonText}>🔄 Sync Now</Text>
+            <Text style={styles.secondaryButtonText}>Sync Now</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.secondaryButton}
