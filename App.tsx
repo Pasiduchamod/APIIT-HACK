@@ -1,7 +1,10 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import 'react-native-get-random-values';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import HomeScreen from './src/screens/HomeScreen';
 import IncidentFormScreen from './src/screens/IncidentFormScreen';
@@ -63,12 +66,19 @@ export default function App() {
   useEffect(() => {
     const setupApp = async () => {
       try {
+        console.log('Starting app initialization...');
         await initializeApp();
+        console.log('App initialization complete');
         setAppReady(true);
       } catch (error: any) {
         console.error('Failed to initialize app:', error);
-        setInitError(error.message || 'Failed to initialize app');
-        Alert.alert('Initialization Error', 'Failed to initialize the app. Please restart.');
+        const errorMessage = error?.message || error?.toString() || 'Failed to initialize app';
+        setInitError(errorMessage);
+        Alert.alert(
+          'Initialization Error', 
+          errorMessage + '\n\nPlease restart the app.',
+          [{ text: 'OK' }]
+        );
       }
     };
 
@@ -78,12 +88,12 @@ export default function App() {
   if (initError) {
     return (
       <View style={styles.errorContainer}>
-        <ActivityIndicator size="large" color="#f44336" />
-        <View style={{ marginTop: 20 }}>
-          <View style={styles.alertBox}>
-            <View />
-          </View>
-        </View>
+        <Text style={{ color: '#fff', fontSize: 18, marginBottom: 20 }}>
+          Initialization Error
+        </Text>
+        <Text style={{ color: '#f44336', fontSize: 14 }}>
+          {initError}
+        </Text>
       </View>
     );
   }
@@ -97,9 +107,12 @@ export default function App() {
   }
 
   return (
-    <AuthProvider>
-      <Navigation />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <StatusBar style="light" />
+        <Navigation />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -115,10 +128,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#1a1a2e',
-  },
-  alertBox: {
-    backgroundColor: '#f44336',
     padding: 20,
-    borderRadius: 8,
   },
 });
