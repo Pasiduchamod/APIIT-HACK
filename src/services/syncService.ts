@@ -81,7 +81,7 @@ export class SyncService {
 
       console.log(`Found ${pendingIncidents.length} unsynced incidents. Syncing...`);
 
-      // Prepare incident data for API
+      // Prepare incident data for API including image metadata
       const incidentData = pendingIncidents.map(incident => ({
         id: incident.id,
         type: incident.type,
@@ -89,6 +89,9 @@ export class SyncService {
         latitude: incident.latitude,
         longitude: incident.longitude,
         timestamp: new Date(incident.timestamp).toISOString(),
+        // Include image metadata if available (multiple images)
+        cloudImageUrls: incident.cloudImageUrls || [],
+        imageQualities: incident.imageQualities || [],
       }));
 
       // Get auth header

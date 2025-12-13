@@ -155,16 +155,21 @@ export class FirebaseQueryAPI {
       const allIncidents = await getDocs(collection(db, this.incidentsCollection));
       const stats = {
         total: allIncidents.size,
-        bySeverity: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        bySeverity: {} as Record<number, number>,
         byType: {} as Record<string, number>,
         byStatus: { pending: 0, synced: 0, failed: 0 },
       };
+
+      // Initialize severity counts
+      for (let i = 1; i <= 5; i++) {
+        stats.bySeverity[i] = 0;
+      }
 
       allIncidents.forEach((doc) => {
         const incident = doc.data() as FirebaseIncident;
 
         // Count by severity
-        if (stats.bySeverity[incident.severity] !== undefined) {
+        if (incident.severity >= 1 && incident.severity <= 5) {
           stats.bySeverity[incident.severity]++;
         }
 
