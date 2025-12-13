@@ -297,13 +297,15 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
               ]}
               onPress={() => setPriorityLevel(lvl)}
             >
-              <Text style={{ color: priorityLevel === lvl ? '#fff' : '#000', fontWeight: 'bold' }}>
+              <Text style={styles.priorityButtonText}>
                 {lvl}
+              </Text>
+              <Text style={styles.priorityLabel}>
+                {lvl === 1 ? 'Low' : lvl === 2 ? 'Minor' : lvl === 3 ? 'Med' : lvl === 4 ? 'High' : 'Critical'}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.priorityHelp}>1 = Low Priority, 5 = Critical Emergency</Text>
 
         <Text style={styles.label}>Your Name *</Text>
         <TextInput
@@ -452,22 +454,37 @@ const styles = StyleSheet.create({
   priorityContainer: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    marginTop: 10 
+    marginTop: 10,
+    gap: 8
   },
   priorityButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    flex: 1,
+    height: 70,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
-  priorityButtonActive: { borderColor: '#1a1a2e' },
-  priorityHelp: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 5,
-    fontStyle: 'italic',
+  priorityButtonActive: { 
+    borderColor: '#1a1a2e',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  priorityButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  priorityLabel: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+    opacity: 0.9,
   },
   input: {
     backgroundColor: '#fff',
