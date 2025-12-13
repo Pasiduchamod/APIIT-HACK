@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
@@ -22,8 +22,12 @@ const firebaseConfig = {
 // Initialize Firebase
 export const firebaseApp = initializeApp(firebaseConfig);
 
-// Initialize Firestore
-export const db = getFirestore(firebaseApp);
+// Initialize Firestore with offline persistence and settings
+export const db = initializeFirestore(firebaseApp, {
+  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  experimentalForceLongPolling: true, // Better for React Native
+  ignoreUndefinedProperties: true, // Prevent crashes from undefined values
+});
 
 // Initialize Auth
 export const auth = getAuth(firebaseApp);

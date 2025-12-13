@@ -1,5 +1,6 @@
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { dbService, Incident } from '../database/db';
+import { AidRequest } from '../database/models/AidRequest';
 import { firebaseService } from './firebaseService';
 import { TokenStorage } from './tokenStorage';
 
@@ -39,7 +40,11 @@ export class CloudSyncService {
           }
           this.networkSyncTimeout = setTimeout(() => {
             console.log('✓ Network connection restored. Initiating cloud sync...');
-            this.syncToCloud();
+            // Wrap sync in try-catch to prevent crashes
+            this.syncToCloud().catch((error) => {
+              console.error('Auto-sync failed after network restore:', error);
+              // Don't crash - just log the error
+            });
           }, 3000);
         } else {
           console.log('⚠ Network connection lost. Operating in offline mode.');
@@ -64,9 +69,14 @@ export class CloudSyncService {
     }
 
     this.autoSyncInterval = setInterval(async () => {
-      const netInfo = await NetInfo.fetch();
-      if (netInfo.isConnected && netInfo.isInternetReachable) {
-        await this.syncToCloud();
+      try {
+        const netInfo = await NetInfo.fetch();
+        if (netInfo.isConnected && netInfo.isInternetReachable) {
+          await this.syncToCloud();
+        }
+      } catch (error) {
+        console.error('Auto-sync interval error:', error);
+        // Don't crash - just log and continue
       }
     }, intervalMs);
 
@@ -141,37 +151,76 @@ export class CloudSyncService {
       // Get pending incidents from SQLite
       const pendingIncidents = await dbService.getPendingIncidents();
 
-      if (pendingIncidents.length === 0) {
-        console.log('No incidents to sync.');
+      // Get pending aid requests from SQLite
+      const pendingAidRequests = await dbService.getPendingAidRequests();
+
+      if (pendingIncidents.length === 0 && pendingAidRequests.length === 0) {
+        console.log('No incidents or aid requests to sync.');
         this.notifyListeners('idle');
         return { success: true, synced: 0 };
       }
 
-      console.log(`Found ${pendingIncidents.length} pending incidents. Syncing to Firebase...`);
+      console.log(`Found ${pendingIncidents.length} pending incidents and ${pendingAidRequests.length} pending aid requests. Syncing to Firebase...`);
 
-      // Sync incidents to Firestore
-      const syncResult = await firebaseService.syncIncidents(pendingIncidents, user.id.toString());
+      let totalSynced = 0;
 
-      if (syncResult.success > 0) {
-        // Update synced incidents in local database
-        const syncedIds = pendingIncidents
-          .slice(0, syncResult.success)
-          .map(i => i.id);
+      // Sync incidents to Firestore with error handling
+      if (pendingIncidents.length > 0) {
+        try {
+          const syncResult = await firebaseService.syncIncidents(pendingIncidents, user.id.toString());
 
-        await dbService.updateIncidentsStatus(syncedIds, 'synced');
-        console.log(`✓ Successfully synced ${syncResult.success} incidents to Firebase`);
+          if (syncResult.success > 0) {
+            // Update synced incidents in local database
+            const syncedIds = pendingIncidents
+              .slice(0, syncResult.success)
+              .map(i => i.id);
+
+            await dbService.updateIncidentsStatus(syncedIds, 'synced');
+            console.log(`✓ Successfully synced ${syncResult.success} incidents to Firebase`);
+            totalSynced += syncResult.success;
+          }
+
+          if (syncResult.failed > 0) {
+            console.warn(`⚠ ${syncResult.failed} incidents failed to sync`);
+          }
+        } catch (incidentSyncError: any) {
+          console.error('Incident sync failed:', incidentSyncError);
+          // Don't throw - continue to sync aid requests
+        }
       }
 
-      if (syncResult.failed > 0) {
-        console.warn(`⚠ ${syncResult.failed} incidents failed to sync`);
+      // Sync aid requests to Firestore with error handling
+      if (pendingAidRequests.length > 0) {
+        try {
+          const syncResult = await firebaseService.syncAidRequests(pendingAidRequests, user.id.toString());
+
+          if (syncResult.success > 0) {
+            // Update synced aid requests in local database
+            const syncedIds = pendingAidRequests
+              .slice(0, syncResult.success)
+              .map(a => a.id);
+
+            await dbService.updateAidRequestsStatus(syncedIds, 'synced');
+            console.log(`✓ Successfully synced ${syncResult.success} aid requests to Firebase`);
+            totalSynced += syncResult.success;
+          }
+
+          if (syncResult.failed > 0) {
+            console.warn(`⚠ ${syncResult.failed} aid requests failed to sync`);
+          }
+        } catch (aidSyncError: any) {
+          console.error('Aid request sync failed:', aidSyncError);
+          // Don't throw - partial sync is acceptable
+        }
       }
 
       this.notifyListeners('success');
-      return { success: true, synced: syncResult.success };
+      return { success: true, synced: totalSynced };
     } catch (error: any) {
       console.error('Cloud sync error:', error);
       this.notifyListeners('error');
-      return { success: false, synced: 0, error: error.message };
+      // Return success=false but don't crash the app
+      return { success: false, synced: 0, error: error.message || 'Unknown sync error' };
     } finally {
       this.isSyncing = false;
     }
