@@ -132,7 +132,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Project Aegis</Text>
+          <Text style={styles.headerTitle}>LankaSafe</Text>
           <Text style={styles.headerSubtitle}>Welcome, {user?.username}</Text>
         </View>
         <View style={[styles.statusBadge, isOnline ? styles.onlineBadge : styles.offlineBadge]}>

@@ -1,4 +1,4 @@
-package com.pasiduchamod.projectaegis
+package com.helloworld
 
 import android.os.Build
 import android.os.Bundle
