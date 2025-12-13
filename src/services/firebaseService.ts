@@ -74,6 +74,7 @@ class FirebaseService {
   private static instance: FirebaseService;
   private incidentsCollection = 'incidents';
   private aidRequestsCollection = 'aid_requests';
+  private usersCollection = 'users';
 
   private constructor() {}
 
@@ -513,6 +514,55 @@ class FirebaseService {
       return querySnapshot.docs.map((doc) => doc.data() as FirebaseAidRequest);
     } catch (error) {
       console.error('Error getting user aid requests:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * CREATE: Add new user to Firestore
+   */
+  async createUser(user: {
+    id: number;
+    username: string;
+    name: string;
+    contactNumber: string;
+    district: string;
+    createdAt: number;
+  }): Promise<void> {
+    try {
+      const userRef = doc(db, this.usersCollection, user.id.toString());
+      
+      await withTimeout(
+        setDoc(userRef, {
+          ...user,
+          updated_at: Date.now(),
+        }),
+        8000,
+        'Create user'
+      );
+
+      console.log(`✓ User ${user.username} created in Firebase`);
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * READ: Get user by username (for login validation)
+   */
+  async getUserByUsername(username: string): Promise<any | null> {
+    try {
+      const q = query(collection(db, this.usersCollection), where('username', '==', username));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        return null;
+      }
+      
+      return querySnapshot.docs[0].data();
+    } catch (error) {
+      console.error('Error getting user by username:', error);
       throw error;
     }
   }

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../constants/config';
 import { TokenStorage } from './tokenStorage';
+import { firebaseService } from './firebaseService';
 
 export interface LoginCredentials {
   username: string;
@@ -78,29 +79,42 @@ export const AuthService = {
 
   async register(userData: RegisterData): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Save user data to Firebase Firestore
+      const userId = Date.now(); // Generate unique ID based on timestamp
+      
+      const userRecord = {
+        id: userId,
+        username: userData.username,
+        name: userData.name,
+        contactNumber: userData.contactNumber,
+        district: userData.district,
+        createdAt: Date.now(),
+      };
+
+      // Save to Firebase users collection
+      await firebaseService.createUser(userRecord);
+
+      const authResponse: AuthResponse = {
+        success: true,
+        token: `firebase-token-${userId}`,
+        user: {
+          id: userId,
+          username: userData.username,
+          name: userData.name,
+          contactNumber: userData.contactNumber,
+          district: userData.district,
         },
-        body: JSON.stringify(userData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Registration failed');
-      }
-
-      const data: AuthResponse = await response.json();
+      };
       
       // Save token and user data to secure storage
-      await TokenStorage.saveToken(data.token);
-      await TokenStorage.saveUser(data.user);
+      await TokenStorage.saveToken(authResponse.token);
+      await TokenStorage.saveUser(authResponse.user);
 
-      return data;
+      console.log('✓ User registered successfully in Firebase');
+      return authResponse;
     } catch (error: any) {
       console.error('Registration failed:', error.message);
-      throw error;
+      throw new Error(error.message || 'Registration failed');
     }
   },
 
