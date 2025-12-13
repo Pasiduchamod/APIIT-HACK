@@ -13,6 +13,7 @@ export interface Incident {
   actionStatus?: 'pending' | 'taking action' | 'completed'; // Admin action status
   created_at: number;
   updated_at: number;
+  description?: string; // Additional details for incidents (e.g., trapped civilians info)
   // Image fields - Support up to 3 images per incident
   localImageUris?: string[]; // Array of local file paths
   cloudImageUrls?: string[]; // Array of Firebase Storage URLs
@@ -61,6 +62,7 @@ class DatabaseService {
           actionStatus TEXT DEFAULT 'pending',
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL,
+          description TEXT,
           localImageUri TEXT,
           cloudImageUrl TEXT,
           imageUploadStatus TEXT DEFAULT 'local_only',
@@ -98,6 +100,9 @@ class DatabaseService {
 
       // Migration: Add aid request aidStatus field
       await this.migrateAidRequestAidStatus();
+
+      // Migration: Add description to incidents
+      await this.migrateIncidentDescription();
 
       // Create index on status for efficient querying of unsynced records
       await this.db.execAsync(`
@@ -241,6 +246,29 @@ class DatabaseService {
     }
   }
 
+  /**
+   * Migration: Add description to incidents table
+   */
+  private async migrateIncidentDescription(): Promise<void> {
+    if (!this.db) return;
+
+    try {
+      const tableInfo = await this.db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(incidents);'
+      );
+
+      const columnNames = tableInfo.map((col) => col.name);
+
+      if (!columnNames.includes('description')) {
+        await this.db.execAsync(`ALTER TABLE incidents ADD COLUMN description TEXT;`);
+        console.log('✓ Added description column to incidents');
+      }
+    } catch (error) {
+      console.error('Error migrating description column:', error);
+      // Don't throw - if migration fails, it might be because column already exists
+    }
+  }
+
   // Create a new incident
   async createIncident(
     incident: Omit<Incident, 'created_at' | 'updated_at'>
@@ -258,9 +286,9 @@ class DatabaseService {
       await this.db.runAsync(
         `INSERT INTO incidents (
           id, type, severity, latitude, longitude, timestamp, status, actionStatus,
-          created_at, updated_at, localImageUri, cloudImageUrl, 
+          created_at, updated_at, description, localImageUri, cloudImageUrl, 
           imageUploadStatus, imageQuality
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           fullIncident.id,
           fullIncident.type,
@@ -272,6 +300,7 @@ class DatabaseService {
           fullIncident.actionStatus || 'pending',
           fullIncident.created_at,
           fullIncident.updated_at,
+          fullIncident.description || null,
           fullIncident.localImageUris ? JSON.stringify(fullIncident.localImageUris) : null,
           fullIncident.cloudImageUrls ? JSON.stringify(fullIncident.cloudImageUrls) : null,
           fullIncident.imageUploadStatuses ? JSON.stringify(fullIncident.imageUploadStatuses) : JSON.stringify([]),

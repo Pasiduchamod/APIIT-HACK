@@ -9,6 +9,7 @@ export const INCIDENT_TYPES = [
   'Flood',
   'Road Block',
   'Power Line Down',
+  'Trapped Civilians',
 ] as const;
 
 export type IncidentType = typeof INCIDENT_TYPES[number];
