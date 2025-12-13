@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -35,12 +36,23 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
   const [isOnline, setIsOnline] = useState(true);
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  
+  // Trapped Civilians specific fields
+  const [trappedPeopleCount, setTrappedPeopleCount] = useState('');
+  const [additionalDetails, setAdditionalDetails] = useState('');
 
   const MAX_IMAGES = 3;
 
   // Android GPS watcher refs
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-set severity to maximum for trapped civilians
+  useEffect(() => {
+    if (incidentType === 'Trapped Civilians') {
+      setSeverity(5);
+    }
+  }, [incidentType]);
 
   useEffect(() => {
     getCurrentLocation();
@@ -187,11 +199,27 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
       return;
     }
 
+    // Validate Trapped Civilians fields
+    if (incidentType === 'Trapped Civilians') {
+      if (!trappedPeopleCount || trappedPeopleCount.trim() === '') {
+        Alert.alert('Missing Information', 'Please enter the number of trapped people.');
+        return;
+      }
+      if (!additionalDetails || additionalDetails.trim() === '') {
+        Alert.alert('Missing Information', 'Please provide additional details about the situation.');
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
       const incidentId = uuidv4();
 
       // Create incident in database
+      const description = incidentType === 'Trapped Civilians'
+        ? `TRAPPED PEOPLE: ${trappedPeopleCount} | DETAILS: ${additionalDetails}`
+        : undefined;
+
       await dbService.createIncident({
         id: incidentId,
         type: incidentType,
@@ -200,6 +228,7 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
         longitude: location.longitude,
         timestamp: Date.now(),
         status: 'pending',
+        description,
       });
 
       // Process images if captured (optional - incident can be saved without images)
@@ -329,6 +358,40 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
             ))}
           </Picker>
         </View>
+
+        {/* Critical Incident Warning */}
+        {incidentType === 'Trapped Civilians' && (
+          <View style={styles.criticalWarning}>
+            <Text style={styles.criticalWarningText}>⚠️ CRITICAL INCIDENT</Text>
+          </View>
+        )}
+
+        {/* Trapped Civilians Specific Fields */}
+        {incidentType === 'Trapped Civilians' && (
+          <>
+            <Text style={styles.label}>Number of People Trapped *</Text>
+            <TextInput
+              style={[styles.input, styles.criticalInput]}
+              value={trappedPeopleCount}
+              onChangeText={setTrappedPeopleCount}
+              placeholder="Enter number of trapped people"
+              keyboardType="number-pad"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.label}>Additional Details *</Text>
+            <TextInput
+              style={[styles.input, styles.textArea, styles.criticalInput]}
+              value={additionalDetails}
+              onChangeText={setAdditionalDetails}
+              placeholder="Describe the situation, location details, any injuries, etc."
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              placeholderTextColor="#999"
+            />
+          </>
+        )}
 
         <Text style={styles.label}>Severity: {severity}</Text>
         <View style={styles.severityContainer}>
@@ -525,4 +588,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitText: { color: '#fff', fontWeight: 'bold' },
+  criticalWarning: {
+    backgroundColor: '#ff0000',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 10,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#cc0000',
+  },
+  criticalWarningText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    letterSpacing: 1,
+  },
+  input: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    fontSize: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  textArea: {
+    height: 100,
+    paddingTop: 12,
+  },
+  criticalInput: {
+    borderColor: '#ff0000',
+    borderWidth: 2,
+  },
 });
