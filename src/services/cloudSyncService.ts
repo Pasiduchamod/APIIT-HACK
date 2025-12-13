@@ -39,19 +39,14 @@ export class CloudSyncService {
             clearTimeout(this.networkSyncTimeout);
           }
           this.networkSyncTimeout = setTimeout(() => {
-            console.log('✓ Network connection restored. Initiating bi-directional sync...');
             // Wrap sync in try-catch to prevent crashes
             this.fullSync().then(() => {
               // Also sync images after data sync
-              console.log('📸 Syncing images after network restore...');
               imageSyncService.syncAllPendingImages();
             }).catch((error) => {
-              console.error('Auto-sync failed after network restore:', error);
               // Don't crash - just log the error
             });
           }, 3000);
-        } else {
-          console.log('⚠ Network connection lost. Operating in offline mode.');
         }
       }
     });
@@ -79,12 +74,9 @@ export class CloudSyncService {
           await this.fullSync();
         }
       } catch (error) {
-        console.error('Auto-sync interval error:', error);
-        // Don't crash - just log and continue
+        // Don't crash - just continue
       }
     }, intervalMs);
-
-    console.log(`✓ Auto-sync started with ${intervalMs}ms interval`);
   }
 
   /**
@@ -94,7 +86,6 @@ export class CloudSyncService {
     if (this.autoSyncInterval) {
       clearInterval(this.autoSyncInterval);
       this.autoSyncInterval = null;
-      console.log('✓ Auto-sync stopped');
     }
   }
 
@@ -124,13 +115,11 @@ export class CloudSyncService {
    */
   async syncToCloud(): Promise<{ success: boolean; synced: number; error?: string }> {
     if (this.isSyncing) {
-      console.log('Sync already in progress, skipping...');
       return { success: false, synced: 0, error: 'Sync already in progress' };
     }
 
     try {
       if (!dbService.isInitialized()) {
-        console.log('Database not yet initialized, skipping sync...');
         return { success: false, synced: 0, error: 'Database not initialized' };
       }
 
@@ -140,7 +129,6 @@ export class CloudSyncService {
       // Check network connectivity
       const netInfo = await NetInfo.fetch();
       if (!netInfo.isConnected || !netInfo.isInternetReachable) {
-        console.log('No internet connection. Cloud sync aborted.');
         this.notifyListeners('offline');
         return { success: false, synced: 0, error: 'No internet connection' };
       }
@@ -148,7 +136,6 @@ export class CloudSyncService {
       // Get user ID from auth
       const user = await TokenStorage.getUser();
       if (!user) {
-        console.log('No authenticated user. Skipping sync.');
         return { success: false, synced: 0, error: 'User not authenticated' };
       }
 
@@ -162,12 +149,9 @@ export class CloudSyncService {
       const pendingCamps = await dbService.getPendingDetentionCamps();
 
       if (pendingIncidents.length === 0 && pendingAidRequests.length === 0 && pendingCamps.length === 0) {
-        console.log('No incidents, aid requests, or camps to sync.');
         this.notifyListeners('idle');
         return { success: true, synced: 0 };
       }
-
-      console.log(`Found ${pendingIncidents.length} pending incidents, ${pendingAidRequests.length} pending aid requests, and ${pendingCamps.length} pending camps. Syncing to Firebase...`);
 
       let totalSynced = 0;
 
@@ -183,19 +167,17 @@ export class CloudSyncService {
               .map(i => i.id);
 
             await dbService.updateIncidentsStatus(syncedIds, 'synced');
-            console.log(`✓ Successfully synced ${syncResult.success} incidents to Firebase`);
             totalSynced += syncResult.success;
             
             // Trigger image sync for synced incidents
-            console.log('📸 Starting image sync for synced incidents...');
             await imageSyncService.syncAllPendingImages();
           }
 
           if (syncResult.failed > 0) {
-            console.warn(`⚠ ${syncResult.failed} incidents failed to sync`);
+            // Some incidents failed to sync
           }
         } catch (incidentSyncError: any) {
-          console.error('Incident sync failed:', incidentSyncError);
+          // Incident sync failed
           // Don't throw - continue to sync aid requests
         }
       }
@@ -212,15 +194,14 @@ export class CloudSyncService {
               .map(a => a.id);
 
             await dbService.updateAidRequestsStatus(syncedIds, 'synced');
-            console.log(`✓ Successfully synced ${syncResult.success} aid requests to Firebase`);
             totalSynced += syncResult.success;
           }
 
           if (syncResult.failed > 0) {
-            console.warn(`⚠ ${syncResult.failed} aid requests failed to sync`);
+            // Some aid requests failed to sync
           }
         } catch (aidSyncError: any) {
-          console.error('Aid request sync failed:', aidSyncError);
+          // Aid request sync failed
           // Don't throw - partial sync is acceptable
         }
       }
@@ -240,15 +221,14 @@ export class CloudSyncService {
             for (const id of syncedIds) {
               await dbService.updateDetentionCampStatus(id, 'synced');
             }
-            console.log(`✓ Successfully synced ${syncResult.success} detention camps to Firebase`);
             totalSynced += syncResult.success;
           }
 
           if (syncResult.failed > 0) {
-            console.warn(`⚠ ${syncResult.failed} detention camps failed to sync`);
+            // Some camps failed to sync
           }
         } catch (campSyncError: any) {
-          console.error('Detention camp sync failed:', campSyncError);
+          // Camp sync failed
           // Don't throw - partial sync is acceptable
         }
       }
@@ -256,7 +236,6 @@ export class CloudSyncService {
       this.notifyListeners('success');
       return { success: true, synced: totalSynced };
     } catch (error: any) {
-      console.error('Cloud sync error:', error);
       this.notifyListeners('error');
       // Return success=false but don't crash the app
       return { success: false, synced: 0, error: error.message || 'Unknown sync error' };
@@ -284,7 +263,6 @@ export class CloudSyncService {
         return { success: false, downloaded: 0, error: 'User not authenticated' };
       }
 
-      console.log('Pulling data from Firebase...');
       this.notifyListeners('downloading');
 
       let totalDownloaded = 0;
@@ -292,8 +270,6 @@ export class CloudSyncService {
 
       // ===== Sync Incidents =====
       const cloudIncidents = await firebaseService.getIncidentsByUser(user.id.toString());
-
-      console.log(`Downloading ${cloudIncidents.length} incidents from Firebase...`);
 
       // Save/update incidents in local database
       let downloaded = 0;
@@ -320,30 +296,25 @@ export class CloudSyncService {
             const cloudStatus = incident.actionStatus || 'pending';
             const localStatus = existing.actionStatus || 'pending';
             
+            console.log(`[DEBUG] Incident ${incident.id.substring(0, 8)}: Cloud=${cloudStatus}, Local=${localStatus}`);
+            
             if (cloudStatus !== localStatus) {
               // Update actionStatus if it changed in cloud
+              console.log(`[UPDATE] Updating incident ${incident.id.substring(0, 8)} from ${localStatus} to ${cloudStatus}`);
               await dbService.updateIncidentActionStatus(incident.id, cloudStatus);
-              console.log(`✓ Updated incident ${incident.id} actionStatus: ${localStatus} → ${cloudStatus}`);
               updated++;
             }
           }
         } catch (error) {
-          console.error(`Failed to download incident ${incident.id}:`, error);
+          // Failed to download incident
         }
       }
 
       totalDownloaded += downloaded;
       totalUpdated += updated;
 
-      if (updated > 0) {
-        console.log(`✓ Updated ${updated} incident action statuses from Firebase`);
-      }
-      console.log(`✓ Downloaded ${downloaded} new incidents from Firebase`);
-
       // ===== Sync Aid Requests =====
       const cloudAidRequests = await firebaseService.getAidRequestsByUser(user.id.toString());
-      
-      console.log(`Downloading ${cloudAidRequests.length} aid requests from Firebase...`);
 
       let aidDownloaded = 0;
       let aidUpdated = 0;
@@ -375,27 +346,19 @@ export class CloudSyncService {
             if (cloudStatus !== localStatus) {
               // Update aidStatus if it changed in cloud (don't mark for sync since it came from cloud)
               await dbService.updateAidRequestAidStatus(aidRequest.id, cloudStatus, false);
-              console.log(`✓ Updated aid request ${aidRequest.id} aidStatus: ${localStatus} → ${cloudStatus}`);
               aidUpdated++;
             }
           }
         } catch (error) {
-          console.error(`Failed to download aid request ${aidRequest.id}:`, error);
+          // Failed to download aid request
         }
       }
 
       totalDownloaded += aidDownloaded;
       totalUpdated += aidUpdated;
 
-      if (aidUpdated > 0) {
-        console.log(`✓ Updated ${aidUpdated} aid request statuses from Firebase`);
-      }
-      console.log(`✓ Downloaded ${aidDownloaded} new aid requests from Firebase`);
-
       // ===== Sync Detention Camps =====
       const cloudCamps = await firebaseService.getDetentionCamps();
-      
-      console.log(`Downloading ${cloudCamps.length} detention camps from Firebase...`);
 
       let campsDownloaded = 0;
       let campsUpdated = 0;
@@ -433,27 +396,20 @@ export class CloudSyncService {
               if (camp.adminApproved !== undefined) {
                 await dbService.updateDetentionCampApproval(camp.id, camp.adminApproved);
               }
-              console.log(`✓ Updated camp ${camp.id} from Firebase`);
               campsUpdated++;
             }
           }
         } catch (error) {
-          console.error(`Failed to download camp ${camp.id}:`, error);
+          // Failed to download camp
         }
       }
 
       totalDownloaded += campsDownloaded;
       totalUpdated += campsUpdated;
 
-      if (campsUpdated > 0) {
-        console.log(`✓ Updated ${campsUpdated} detention camps from Firebase`);
-      }
-      console.log(`✓ Downloaded ${campsDownloaded} new detention camps from Firebase`);
-
       this.notifyListeners('success');
       return { success: true, downloaded: totalDownloaded + totalUpdated };
     } catch (error: any) {
-      console.error('Cloud download error:', error);
       this.notifyListeners('error');
       return { success: false, downloaded: 0, error: error.message };
     }
@@ -480,7 +436,6 @@ export class CloudSyncService {
         synced: pushResult.synced,
       };
     } catch (error) {
-      console.error('Full sync error:', error);
       this.notifyListeners('error');
       return { success: false, downloaded: 0, synced: 0 };
     }
@@ -522,7 +477,6 @@ export class CloudSyncService {
 
       return { localPending, localTotal, cloudTotal };
     } catch (error) {
-      console.error('Error getting sync stats:', error);
       return { localPending: 0, localTotal: 0, cloudTotal: 0 };
     }
   }

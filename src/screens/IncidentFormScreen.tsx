@@ -3,16 +3,16 @@ import { Picker } from '@react-native-picker/picker';
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
@@ -171,7 +171,6 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
       const uri = await imageService.capturePhoto();
       if (uri) {
         setImageUris(prev => [...prev, uri]);
-        console.log('Photo captured:', uri);
       }
     } catch (error) {
       console.error('Error capturing photo:', error);
@@ -189,7 +188,6 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
       const uri = await imageService.pickImage();
       if (uri) {
         setImageUris(prev => [...prev, uri]);
-        console.log(' Image selected:', uri);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -280,9 +278,7 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
                   cloudUrls.push(downloadUrl);
                   uploadStatuses.push('high_uploaded');
                   qualities.push('high');
-                  console.log(`Image ${i} uploaded to Firebase:`, downloadUrl);
                 } catch (uploadError) {
-                  console.error(`Failed to upload image ${i}:`, uploadError);
                   // Keep as local only
                   cloudUrls.push('');
                   uploadStatuses.push('local_only');
@@ -295,7 +291,6 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
                 qualities.push('none');
               }
             } catch (imgError) {
-              console.error(`Error processing image ${i}:`, imgError);
               // Continue with other images
             }
           }
@@ -310,7 +305,6 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
             });
           }
         } catch (imageError) {
-          console.error('Image processing error:', imageError);
           // Don't fail the whole submission if images fail
           Alert.alert(
             'Image Warning',
@@ -327,8 +321,6 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
         cloudSyncService.syncToCloud().catch(() => {});
         // Also try to sync images immediately
         imageSyncService.syncAllPendingImages().catch(() => {});
-      } else {
-        console.log('📴 Offline mode: Incident and images saved locally. Will sync when online.');
       }
 
       Alert.alert('Saved', 'Incident saved successfully.', [

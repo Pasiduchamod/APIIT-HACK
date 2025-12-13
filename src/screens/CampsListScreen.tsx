@@ -43,7 +43,6 @@ export default function CampsListScreen({ navigation }: CampsListScreenProps) {
   const loadCamps = async () => {
     try {
       if (!dbService.isInitialized()) {
-        console.log('⏳ Database not yet initialized, waiting...');
         return;
       }
 
@@ -53,22 +52,17 @@ export default function CampsListScreen({ navigation }: CampsListScreenProps) {
       
       // If online, sync with Firebase in the background
       if (isOnline) {
-        console.log('🌐 Online - syncing camps from Firebase...');
         try {
           await cloudSyncService.syncFromCloud();
           // Reload approved camps after sync
           const updatedCamps = await dbService.getAllDetentionCamps(false);
           setCamps(updatedCamps);
-          console.log('✓ Camps synced from Firebase');
         } catch (error) {
-          console.error('Failed to sync camps from Firebase:', error);
           // Still use cached data
         }
-      } else {
-        console.log('📴 Offline - using cached camps');
       }
     } catch (error) {
-      console.error('Error loading camps:', error);
+      // Silent error - using cached data
     }
   };
 
@@ -76,12 +70,11 @@ export default function CampsListScreen({ navigation }: CampsListScreenProps) {
     setIsRefreshing(true);
     try {
       if (isOnline) {
-        console.log('🔄 Refreshing camps from Firebase...');
         await cloudSyncService.syncFromCloud();
       }
       await loadCamps();
     } catch (error) {
-      console.error('Refresh error:', error);
+      // Silent error
     } finally {
       setIsRefreshing(false);
     }
