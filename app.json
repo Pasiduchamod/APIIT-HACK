@@ -16,6 +16,7 @@
     },
     "android": {
       "package": "com.pasiduchamod.projectaegis",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0f172a"
@@ -29,7 +30,7 @@
       ],
       "config": {
         "googleMaps": {
-          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+          "apiKey": "AIzaSyCwVz_cBTot2awm8L-nJVlmqndWa2KBWJM"
         }
       }
     }
