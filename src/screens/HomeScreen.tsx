@@ -33,6 +33,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [activeTab, setActiveTab] = useState<'incidents' | 'aidRequests'>('incidents');
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
 
   // Refresh incidents whenever screen comes into focus (e.g., returning from IncidentForm)
   useFocusEffect(
@@ -238,12 +239,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     const getAidStatusDisplay = (status?: string) => {
       switch (status) {
         case 'taking action':
-          return { text: '🚨 Aid In Progress', color: '#2196f3', emoji: '🔵' };
+          return { text: 'Aid In Progress', color: '#2196f3' };
         case 'completed':
-          return { text: '✅ Aid Received', color: '#4caf50', emoji: '✅' };
+          return { text: 'Aid Received', color: '#4caf50' };
         case 'pending':
         default:
-          return { text: '⏳ Pending', color: '#ffa726', emoji: '⏳' };
+          return { text: 'Pending', color: '#ffa726' };
       }
     };
 
@@ -290,7 +291,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </Text>
         <View style={styles.actionStatusContainer}>
           <View style={[styles.actionStatusBadge, { backgroundColor: aidStatus.color }]}>
-            <Text style={styles.actionStatusText}>{aidStatus.emoji} {aidStatus.text}</Text>
+            <Text style={styles.actionStatusText}>{aidStatus.text}</Text>
           </View>
         </View>
         {item.aidStatus === 'taking action' && (
@@ -298,7 +299,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             style={styles.markReceivedButton}
             onPress={handleMarkAsReceived}
           >
-            <Text style={styles.markReceivedButtonText}>✅ Mark as Received</Text>
+            <Text style={styles.markReceivedButtonText}>Mark as Received</Text>
           </TouchableOpacity>
         )}
         <View style={styles.syncBadge}>
@@ -314,19 +315,71 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>LankaSafe</Text>
-          <Text style={styles.headerSubtitle}>Welcome, {user?.username}</Text>
-          {lastSyncTime && (
-            <Text style={styles.lastSyncText}>
-              Last sync: {lastSyncTime.toLocaleTimeString()}
-            </Text>
-          )}
         </View>
-        <View style={[styles.statusBadge, isOnline ? styles.onlineBadge : styles.offlineBadge]}>
-          <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
+        <View style={styles.headerRight}>
+          <View style={[styles.statusBadge, isOnline ? styles.onlineBadge : styles.offlineBadge]}>
+            <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.userIconButton}
+            onPress={() => setShowMenu(!showMenu)}
+          >
+            <Text style={styles.userIcon}>👤</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.syncButton, !isOnline && styles.syncButtonDisabled]}
+            onPress={handleManualSync}
+            disabled={!isOnline}
+          >
+            <Text style={styles.syncButtonText}>🔄</Text>
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* Profile Dropdown Menu */}
+      {showMenu && (
+        <View style={styles.dropdownMenu}>
+          <View style={styles.profileSection}>
+            <Text style={styles.profileLabel}>Username:</Text>
+            <Text style={styles.profileValue}>{user?.username || 'Not logged in'}</Text>
+            {user?.name && (
+              <>
+                <Text style={styles.profileLabel}>Name:</Text>
+                <Text style={styles.profileValue}>{user.name}</Text>
+              </>
+            )}
+            {user?.district && (
+              <>
+                <Text style={styles.profileLabel}>District:</Text>
+                <Text style={styles.profileValue}>{user.district}</Text>
+              </>
+            )}
+            {user?.contactNumber && (
+              <>
+                <Text style={styles.profileLabel}>Contact:</Text>
+                <Text style={styles.profileValue}>{user.contactNumber}</Text>
+              </>
+            )}
+            {lastSyncTime && (
+              <>
+                <Text style={styles.profileLabel}>Last sync:</Text>
+                <Text style={styles.profileValue}>{lastSyncTime.toLocaleTimeString()}</Text>
+              </>
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setShowMenu(false);
+              handleLogout();
+            }}
+          >
+            <Text style={styles.menuItemText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Stats */}
       <View style={styles.statsContainer}>
@@ -372,21 +425,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         >
           <Text style={styles.aidButtonText}>+ Request Aid</Text>
         </TouchableOpacity>
-        <View style={styles.secondaryButtons}>
-          <TouchableOpacity
-            style={[styles.secondaryButton, !isOnline && styles.secondaryButtonDisabled]}
-            onPress={handleManualSync}
-            disabled={!isOnline}
-          >
-            <Text style={styles.secondaryButtonText}>Sync Now</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={handleLogout}
-          >
-            <Text style={styles.secondaryButtonText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Tab Selector */}
@@ -473,6 +511,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerLeft: {
+    flex: 1,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -490,9 +539,10 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 12,
   },
   onlineBadge: {
     backgroundColor: '#4caf50',
@@ -502,8 +552,101 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
+  },
+  syncButton: {
+    backgroundColor: '#fff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginLeft: 8,
+  },
+  syncButtonDisabled: {
+    opacity: 0.5,
+  },
+  syncButtonText: {
+    fontSize: 16,
+  },
+  userIconButton: {
+    backgroundColor: '#fff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  userIcon: {
+    fontSize: 16,
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 110 : 100,
+    right: 20,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1000,
+    minWidth: 200,
+  },
+  profileSection: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  profileLabel: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  profileValue: {
+    fontSize: 14,
+    color: '#333',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  menuItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  menuItemDisabled: {
+    opacity: 0.5,
+  },
+  menuItemText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  headerButton: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  headerButtonDisabled: {
+    opacity: 0.5,
+  },
+  headerButtonText: {
+    color: '#333',
+    fontSize: 12,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',
