@@ -44,7 +44,7 @@ export default function LoginScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Project Aegis</Text>
           <Text style={styles.subtitle}>Disaster Management System</Text>
-          <Text style={styles.location}>Ratnapura, Sri Lanka</Text>
+          <Text style={styles.location}>Sri Lanka</Text>
         </View>
 
         <View style={styles.form}>

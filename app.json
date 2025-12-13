@@ -3,26 +3,13 @@
     "name": "Project Aegis",
     "slug": "project-aegis",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.projectaegis.app"
+    "extra": {
+      "eas": {
+        "projectId": "797c7b53-f02d-4354-8494-6a90c1fd5e1a"
+      }
     },
     "android": {
-      "package": "com.projectaegis.app",
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
-      ]
-    },
-    "plugins": [
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Allow Project Aegis to use your location to record incident coordinates."
-        }
-      ]
-    ]
+      "package": "com.pasiduchamod.projectaegis"
+    }
   }
 }
