@@ -16,7 +16,7 @@ import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { INCIDENT_TYPES, IncidentType } from '../constants/config';
 import { dbService } from '../database/db';
-import { syncService } from '../services/syncService';
+import { cloudSyncService } from '../services/cloudSyncService';
 
 interface IncidentFormScreenProps {
   navigation: any;
@@ -154,7 +154,7 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
       });
 
       if (isOnline) {
-        syncService.syncIncidents().catch(() => {});
+        cloudSyncService.syncToCloud().catch(() => {});
       }
 
       Alert.alert('Saved', 'Incident saved successfully.', [

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { Incident } from '../database/db';
-import { syncService } from '../services/syncService';
+import { cloudSyncService } from '../services/cloudSyncService';
 
 interface HomeScreenProps {
   navigation: any;
@@ -42,20 +42,20 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       }
     };
 
-    syncService.addSyncListener(handleSyncStatus);
+    cloudSyncService.addSyncListener(handleSyncStatus);
 
     return () => {
       netInfoUnsubscribe();
-      syncService.removeSyncListener(handleSyncStatus);
+      cloudSyncService.removeSyncListener(handleSyncStatus);
     };
   }, []);
 
   const loadIncidents = async () => {
     try {
-      const allIncidents = await syncService.getAllIncidents();
+      const allIncidents = await cloudSyncService.getAllLocalIncidents();
       setIncidents(allIncidents);
 
-      const count = await syncService.getPendingCount();
+      const count = await cloudSyncService.getPendingCount();
       setUnsyncedCount(count);
     } catch (error) {
       console.error('Error loading incidents:', error);
@@ -66,7 +66,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     setIsRefreshing(true);
     await loadIncidents();
     if (isOnline) {
-      await syncService.syncIncidents();
+      await cloudSyncService.syncToCloud();
     }
     setIsRefreshing(false);
   };
@@ -77,7 +77,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       return;
     }
 
-    const result = await syncService.syncIncidents();
+    const result = await cloudSyncService.syncToCloud();
     if (result.success) {
       Alert.alert('Success', `Synced ${result.synced} incident(s)`);
       loadIncidents();
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#1a1a2e',
     padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
