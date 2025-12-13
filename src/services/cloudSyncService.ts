@@ -1,9 +1,8 @@
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { dbService, Incident } from '../database/db';
-import { AidRequest } from '../database/models/AidRequest';
 import { firebaseService } from './firebaseService';
-import { TokenStorage } from './tokenStorage';
 import { imageSyncService } from './imageSyncService';
+import { TokenStorage } from './tokenStorage';
 
 /**
  * CloudSyncService handles bi-directional synchronization between
@@ -159,13 +158,16 @@ export class CloudSyncService {
       // Get pending aid requests from SQLite
       const pendingAidRequests = await dbService.getPendingAidRequests();
 
-      if (pendingIncidents.length === 0 && pendingAidRequests.length === 0) {
-        console.log('No incidents or aid requests to sync.');
+      // Get pending detention camps from SQLite
+      const pendingCamps = await dbService.getPendingDetentionCamps();
+
+      if (pendingIncidents.length === 0 && pendingAidRequests.length === 0 && pendingCamps.length === 0) {
+        console.log('No incidents, aid requests, or camps to sync.');
         this.notifyListeners('idle');
         return { success: true, synced: 0 };
       }
 
-      console.log(`Found ${pendingIncidents.length} pending incidents and ${pendingAidRequests.length} pending aid requests. Syncing to Firebase...`);
+      console.log(`Found ${pendingIncidents.length} pending incidents, ${pendingAidRequests.length} pending aid requests, and ${pendingCamps.length} pending camps. Syncing to Firebase...`);
 
       let totalSynced = 0;
 
@@ -219,6 +221,34 @@ export class CloudSyncService {
           }
         } catch (aidSyncError: any) {
           console.error('Aid request sync failed:', aidSyncError);
+          // Don't throw - partial sync is acceptable
+        }
+      }
+
+      // Sync detention camps to Firestore with error handling
+      if (pendingCamps.length > 0) {
+        try {
+          const syncResult = await firebaseService.syncDetentionCamps(pendingCamps, user.id.toString());
+
+          if (syncResult.success > 0) {
+            // Update synced camps in local database
+            const syncedIds = pendingCamps
+              .slice(0, syncResult.success)
+              .map(c => c.id);
+
+            // Update status to synced for all successfully synced camps
+            for (const id of syncedIds) {
+              await dbService.updateDetentionCampStatus(id, 'synced');
+            }
+            console.log(`✓ Successfully synced ${syncResult.success} detention camps to Firebase`);
+            totalSynced += syncResult.success;
+          }
+
+          if (syncResult.failed > 0) {
+            console.warn(`⚠ ${syncResult.failed} detention camps failed to sync`);
+          }
+        } catch (campSyncError: any) {
+          console.error('Detention camp sync failed:', campSyncError);
           // Don't throw - partial sync is acceptable
         }
       }
@@ -343,8 +373,8 @@ export class CloudSyncService {
             const localStatus = existing.aidStatus || 'pending';
             
             if (cloudStatus !== localStatus) {
-              // Update aidStatus if it changed in cloud
-              await dbService.updateAidRequestAidStatus(aidRequest.id, cloudStatus);
+              // Update aidStatus if it changed in cloud (don't mark for sync since it came from cloud)
+              await dbService.updateAidRequestAidStatus(aidRequest.id, cloudStatus, false);
               console.log(`✓ Updated aid request ${aidRequest.id} aidStatus: ${localStatus} → ${cloudStatus}`);
               aidUpdated++;
             }
@@ -361,6 +391,64 @@ export class CloudSyncService {
         console.log(`✓ Updated ${aidUpdated} aid request statuses from Firebase`);
       }
       console.log(`✓ Downloaded ${aidDownloaded} new aid requests from Firebase`);
+
+      // ===== Sync Detention Camps =====
+      const cloudCamps = await firebaseService.getDetentionCamps();
+      
+      console.log(`Downloading ${cloudCamps.length} detention camps from Firebase...`);
+
+      let campsDownloaded = 0;
+      let campsUpdated = 0;
+      for (const camp of cloudCamps) {
+        try {
+          // Check if camp exists locally
+          const existing = await dbService.getDetentionCampById(camp.id);
+          if (!existing) {
+            // Insert new camp - show all camps in the app (even unapproved ones can be visible)
+            // Use insertDetentionCampFromFirebase to preserve the Firebase ID
+            await dbService.insertDetentionCampFromFirebase(camp);
+            campsDownloaded++;
+          } else {
+            // Check if camp details changed in cloud
+            const needsUpdate = 
+              camp.campStatus !== existing.campStatus ||
+              camp.current_occupancy !== existing.current_occupancy ||
+              camp.capacity !== existing.capacity ||
+              camp.name !== existing.name ||
+              camp.facilities !== existing.facilities ||
+              (camp.adminApproved !== undefined && camp.adminApproved !== existing.adminApproved);
+            
+            if (needsUpdate) {
+              // Update camp details
+              await dbService.updateDetentionCamp(camp.id, {
+                name: camp.name,
+                campStatus: camp.campStatus,
+                current_occupancy: camp.current_occupancy,
+                capacity: camp.capacity,
+                facilities: camp.facilities,
+                contact_person: camp.contact_person,
+                contact_phone: camp.contact_phone,
+                description: camp.description,
+              });
+              if (camp.adminApproved !== undefined) {
+                await dbService.updateDetentionCampApproval(camp.id, camp.adminApproved);
+              }
+              console.log(`✓ Updated camp ${camp.id} from Firebase`);
+              campsUpdated++;
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to download camp ${camp.id}:`, error);
+        }
+      }
+
+      totalDownloaded += campsDownloaded;
+      totalUpdated += campsUpdated;
+
+      if (campsUpdated > 0) {
+        console.log(`✓ Updated ${campsUpdated} detention camps from Firebase`);
+      }
+      console.log(`✓ Downloaded ${campsDownloaded} new detention camps from Firebase`);
 
       this.notifyListeners('success');
       return { success: true, downloaded: totalDownloaded + totalUpdated };

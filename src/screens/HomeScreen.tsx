@@ -2,15 +2,14 @@ import NetInfo from '@react-native-community/netinfo';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    FlatList,
+    Platform,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { Incident, dbService } from '../database/db';
@@ -106,7 +105,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       // Calculate total unsynced count
       const incidentPendingCount = await cloudSyncService.getPendingCount();
       const aidRequestPendingCount = await dbService.getPendingAidRequestsCount();
-      setUnsyncedCount(incidentPendingCount + aidRequestPendingCount);
+      const campPendingCount = await dbService.getPendingDetentionCampsCount();
+      setUnsyncedCount(incidentPendingCount + aidRequestPendingCount + campPendingCount);
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -193,12 +193,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     const getActionStatusDisplay = (status?: string) => {
       switch (status) {
         case 'taking action':
-          return { text: '🚨 Action In Progress', color: '#ff9800', emoji: '🔵' };
+          return { text: 'Action In Progress', color: '#ff9800', emoji: '' };
         case 'completed':
-          return { text: '✅ Completed', color: '#4caf50', emoji: '✅' };
+          return { text: 'Completed', color: '#4caf50', emoji: '' };
         case 'pending':
         default:
-          return { text: '⏳ Pending Action', color: '#999', emoji: '⏳' };
+          return { text: 'Pending Action', color: '#999', emoji: '' };
       }
     };
 
@@ -220,12 +220,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </Text>
         <View style={styles.actionStatusContainer}>
           <View style={[styles.actionStatusBadge, { backgroundColor: actionStatus.color }]}>
-            <Text style={styles.actionStatusText}>{actionStatus.emoji} {actionStatus.text}</Text>
+            <Text style={styles.actionStatusText}>{actionStatus.text}</Text>
           </View>
         </View>
         <View style={styles.syncBadge}>
           <Text style={[styles.syncText, item.status === 'synced' ? styles.synced : item.status === 'failed' ? styles.failed : styles.unsynced]}>
-            {item.status === 'synced' ? '✓ Synced' : item.status === 'failed' ? '⚠ Failed' : '⏳ Pending Sync'}
+            {item.status === 'synced' ? 'Synced' : item.status === 'failed' ? 'Failed' : 'Pending Sync'}
           </Text>
         </View>
       </View>
@@ -254,6 +254,18 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       try {
         await dbService.updateAidRequestAidStatus(item.id, 'completed');
         await loadData();
+        
+        // Auto-sync if online
+        if (isOnline) {
+          console.log('🔄 Auto-syncing aid status update to Firebase...');
+          try {
+            await cloudSyncService.syncToCloud();
+            console.log('✓ Aid status synced to Firebase');
+          } catch (syncError) {
+            console.warn('⚠ Failed to sync immediately, will retry later:', syncError);
+          }
+        }
+        
         Alert.alert('Success', 'Aid marked as received! Thank you for confirming.');
       } catch (error) {
         console.error('Failed to update aid status:', error);
@@ -326,14 +338,14 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             style={styles.userIconButton}
             onPress={() => setShowMenu(!showMenu)}
           >
-            <Text style={styles.userIcon}>👤</Text>
+            <Text style={styles.userIcon}>U</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.syncButton, !isOnline && styles.syncButtonDisabled]}
             onPress={handleManualSync}
             disabled={!isOnline}
           >
-            <Text style={styles.syncButtonText}>🔄</Text>
+            <Text style={styles.syncButtonText}>↻</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -400,14 +412,14 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       {/* Sync Status */}
       {syncStatus === 'syncing' && (
         <View style={styles.syncingBanner}>
-          <Text style={styles.syncingText}>🔄 Syncing data...</Text>
+          <Text style={styles.syncingText}>Syncing data...</Text>
         </View>
       )}
 
       {/* Update Received Banner */}
       {showUpdateBanner && (
         <View style={styles.updateBanner}>
-          <Text style={styles.updateBannerText}>✅ Status updates received from server</Text>
+          <Text style={styles.updateBannerText}>Status updates received from server</Text>
         </View>
       )}
 
@@ -424,6 +436,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           onPress={() => navigation.navigate('AidRequestForm')}
         >
           <Text style={styles.aidButtonText}>+ Request Aid</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.campsButton}
+          onPress={() => navigation.navigate('CampsList')}
+        >
+          <Text style={styles.campsButtonText}>View Camps</Text>
         </TouchableOpacity>
       </View>
 
@@ -720,6 +738,18 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   aidButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  campsButton: {
+    backgroundColor: '#4caf50',
+    padding: 18,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  campsButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',

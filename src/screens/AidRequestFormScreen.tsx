@@ -199,6 +199,7 @@ export default function AidRequestFormScreen({ navigation }: AidRequestFormScree
         description: description.trim() || null,
         priority_level: priorityLevel,
         status: 'pending' as const,
+        aidStatus: 'pending' as const,
         requester_name: requesterName.trim(),
         contact_number: contactNumber.trim(),
         number_of_people: parseInt(numberOfPeople),

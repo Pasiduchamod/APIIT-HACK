@@ -1,18 +1,16 @@
 import {
-  collection,
-  doc,
-  setDoc,
-  updateDoc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  Timestamp,
-  DocumentReference,
-  QueryConstraint,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    query,
+    setDoc,
+    Timestamp,
+    updateDoc,
+    where
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Incident } from '../database/db';
+import { DetentionCamp, Incident } from '../database/db';
 import { AidRequest } from '../database/models/AidRequest';
 
 /**
@@ -31,6 +29,20 @@ import { AidRequest } from '../database/models/AidRequest';
  * - updated_at (Timestamp): When document was last updated
  * - description (string): Optional incident description
  * - imageUrl (string): Optional image URL in storage
+ * 
+ * Collection: detention_camps
+ * - id (string): Document ID (same as camp.id)
+ * - name (string): Camp name
+ * - latitude (number): GPS latitude
+ * - longitude (number): GPS longitude
+ * - capacity (number): Maximum capacity
+ * - current_occupancy (number): Current number of people
+ * - facilities (string): JSON string array of facilities
+ * - campStatus (string): 'operational' | 'full' | 'closed'
+ * - adminApproved (boolean): Admin approval status
+ * - userId (string): User who submitted
+ * - created_at (Timestamp): When document was created
+ * - updated_at (Timestamp): When document was last updated
  */
 
 export interface FirebaseIncident extends Incident {
@@ -40,6 +52,10 @@ export interface FirebaseIncident extends Incident {
 }
 
 export interface FirebaseAidRequest extends AidRequest {
+  userId?: string;
+}
+
+export interface FirebaseDetentionCamp extends DetentionCamp {
   userId?: string;
 }
 
@@ -74,6 +90,7 @@ class FirebaseService {
   private static instance: FirebaseService;
   private incidentsCollection = 'incidents';
   private aidRequestsCollection = 'aid_requests';
+  private detentionCampsCollection = 'detention_camps';
   private usersCollection = 'users';
 
   private constructor() {}
@@ -563,6 +580,152 @@ class FirebaseService {
       return querySnapshot.docs[0].data();
     } catch (error) {
       console.error('Error getting user by username:', error);
+      throw error;
+    }
+  }
+
+  // ===== DETENTION CAMP METHODS =====
+
+  /**
+   * SYNC: Upload detention camps to Firestore
+   */
+  async syncDetentionCamps(camps: DetentionCamp[], userId: string): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    for (const camp of camps) {
+      try {
+        const campRef = doc(db, this.detentionCampsCollection, camp.id);
+
+        await withTimeout(
+          setDoc(campRef, {
+            id: camp.id,
+            name: camp.name,
+            latitude: camp.latitude,
+            longitude: camp.longitude,
+            capacity: camp.capacity,
+            current_occupancy: camp.current_occupancy,
+            facilities: camp.facilities,
+            campStatus: camp.campStatus,
+            contact_person: camp.contact_person || null,
+            contact_phone: camp.contact_phone || null,
+            description: camp.description || null,
+            adminApproved: false, // New camps need admin approval
+            userId,
+            created_at: camp.created_at,
+            updated_at: Date.now(),
+          }),
+          8000,
+          'Sync detention camp'
+        );
+
+        success++;
+        console.log(`✓ Synced camp ${camp.id} to Firebase`);
+      } catch (error) {
+        console.error(`✗ Failed to sync camp ${camp.id}:`, error);
+        failed++;
+      }
+    }
+
+    return { success, failed };
+  }
+
+  /**
+   * READ: Get all detention camps (all camps, not just approved)
+   * Note: Mobile app will filter by adminApproved locally if needed
+   */
+  async getDetentionCamps(): Promise<FirebaseDetentionCamp[]> {
+    try {
+      const campsRef = collection(db, this.detentionCampsCollection);
+
+      const querySnapshot = await withTimeout(
+        getDocs(campsRef),
+        10000,
+        'Get detention camps'
+      );
+
+      const camps: FirebaseDetentionCamp[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        camps.push({
+          id: data.id || doc.id,
+          name: data.name,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          capacity: data.capacity,
+          current_occupancy: data.current_occupancy || 0,
+          facilities: data.facilities,
+          campStatus: data.campStatus || 'operational',
+          contact_person: data.contact_person,
+          contact_phone: data.contact_phone,
+          description: data.description,
+          status: 'synced',
+          adminApproved: data.adminApproved !== undefined ? data.adminApproved : true, // Default to true if not set
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          userId: data.userId,
+        });
+      });
+
+      return camps;
+    } catch (error) {
+      console.error('Error getting detention camps:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * UPDATE: Update camp approval status (admin only)
+   */
+  async updateCampApproval(campId: string, approved: boolean): Promise<void> {
+    try {
+      const campRef = doc(db, this.detentionCampsCollection, campId);
+
+      await withTimeout(
+        updateDoc(campRef, {
+          adminApproved: approved,
+          updated_at: Date.now(),
+        }),
+        8000,
+        'Update camp approval'
+      );
+
+      console.log(`✓ Updated camp ${campId} approval to ${approved}`);
+    } catch (error) {
+      console.error('Error updating camp approval:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * UPDATE: Update camp details
+   */
+  async updateCamp(campId: string, updates: Partial<DetentionCamp>): Promise<void> {
+    try {
+      const campRef = doc(db, this.detentionCampsCollection, campId);
+
+      const updateData: any = {
+        updated_at: Date.now(),
+      };
+
+      if (updates.name !== undefined) updateData.name = updates.name;
+      if (updates.capacity !== undefined) updateData.capacity = updates.capacity;
+      if (updates.current_occupancy !== undefined) updateData.current_occupancy = updates.current_occupancy;
+      if (updates.campStatus !== undefined) updateData.campStatus = updates.campStatus;
+      if (updates.facilities !== undefined) updateData.facilities = updates.facilities;
+      if (updates.contact_person !== undefined) updateData.contact_person = updates.contact_person;
+      if (updates.contact_phone !== undefined) updateData.contact_phone = updates.contact_phone;
+      if (updates.description !== undefined) updateData.description = updates.description;
+
+      await withTimeout(
+        updateDoc(campRef, updateData),
+        8000,
+        'Update camp'
+      );
+
+      console.log(`✓ Updated camp ${campId} in Firebase`);
+    } catch (error) {
+      console.error('Error updating camp:', error);
       throw error;
     }
   }
