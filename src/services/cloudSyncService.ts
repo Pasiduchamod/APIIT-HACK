@@ -39,9 +39,9 @@ export class CloudSyncService {
             clearTimeout(this.networkSyncTimeout);
           }
           this.networkSyncTimeout = setTimeout(() => {
-            console.log('✓ Network connection restored. Initiating cloud sync...');
+            console.log('✓ Network connection restored. Initiating bi-directional sync...');
             // Wrap sync in try-catch to prevent crashes
-            this.syncToCloud().catch((error) => {
+            this.fullSync().catch((error) => {
               console.error('Auto-sync failed after network restore:', error);
               // Don't crash - just log the error
             });
@@ -72,7 +72,7 @@ export class CloudSyncService {
       try {
         const netInfo = await NetInfo.fetch();
         if (netInfo.isConnected && netInfo.isInternetReachable) {
-          await this.syncToCloud();
+          await this.fullSync();
         }
       } catch (error) {
         console.error('Auto-sync interval error:', error);
@@ -260,12 +260,13 @@ export class CloudSyncService {
 
       // Save/update incidents in local database
       let downloaded = 0;
+      let updated = 0;
       for (const incident of cloudIncidents) {
         try {
           // Check if incident exists locally
           const existing = await dbService.getIncident(incident.id);
           if (!existing) {
-            // Insert new incident
+            // Insert new incident with actionStatus
             await dbService.createIncident({
               id: incident.id,
               type: incident.type,
@@ -274,17 +275,32 @@ export class CloudSyncService {
               longitude: incident.longitude,
               timestamp: incident.timestamp,
               status: 'synced',
+              actionStatus: incident.actionStatus || 'pending',
             });
             downloaded++;
+          } else {
+            // Check if actionStatus changed in cloud (handle null/undefined cases)
+            const cloudStatus = incident.actionStatus || 'pending';
+            const localStatus = existing.actionStatus || 'pending';
+            
+            if (cloudStatus !== localStatus) {
+              // Update actionStatus if it changed in cloud
+              await dbService.updateIncidentActionStatus(incident.id, cloudStatus);
+              console.log(`✓ Updated incident ${incident.id} actionStatus: ${localStatus} → ${cloudStatus}`);
+              updated++;
+            }
           }
         } catch (error) {
           console.error(`Failed to download incident ${incident.id}:`, error);
         }
       }
 
+      if (updated > 0) {
+        console.log(`✓ Updated ${updated} incident action statuses from Firebase`);
+      }
       console.log(`✓ Downloaded ${downloaded} new incidents from Firebase`);
       this.notifyListeners('success');
-      return { success: true, downloaded };
+      return { success: true, downloaded: downloaded + updated };
     } catch (error: any) {
       console.error('Cloud download error:', error);
       this.notifyListeners('error');
@@ -305,6 +321,8 @@ export class CloudSyncService {
       // Then push to cloud
       const pushResult = await this.syncToCloud();
 
+      this.notifyListeners('success');
+      
       return {
         success: pullResult.success && pushResult.success,
         downloaded: pullResult.downloaded,

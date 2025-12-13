@@ -64,6 +64,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   const loadData = async () => {
     try {
+      // Check if database is initialized before attempting to load
+      if (!dbService.isInitialized()) {
+        console.log('⏳ Database not yet initialized, waiting...');
+        return;
+      }
+
       // Load incidents
       const allIncidents = await cloudSyncService.getAllLocalIncidents();
       setIncidents(allIncidents);
@@ -83,10 +89,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await loadData();
     if (isOnline) {
-      await cloudSyncService.syncToCloud();
+      await cloudSyncService.fullSync();
     }
+    await loadData();
     setIsRefreshing(false);
   };
 
@@ -116,27 +122,48 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     );
   };
 
-  const renderIncident = ({ item }: { item: Incident }) => (
-    <View style={styles.incidentCard}>
-      <View style={styles.incidentHeader}>
-        <Text style={styles.incidentType}>{item.type}</Text>
-        <View style={[styles.severityBadge, { backgroundColor: getSeverityColor(item.severity) }]}>
-          <Text style={styles.severityText}>Severity {item.severity}</Text>
+  const renderIncident = ({ item }: { item: Incident }) => {
+    const getActionStatusDisplay = (status?: string) => {
+      switch (status) {
+        case 'taking_action':
+          return { text: '🚨 Action In Progress', color: '#ff9800' };
+        case 'completed':
+          return { text: '✅ Completed', color: '#4caf50' };
+        case 'pending':
+        default:
+          return { text: '⏳ Pending Action', color: '#999' };
+      }
+    };
+
+    const actionStatus = getActionStatusDisplay(item.actionStatus);
+
+    return (
+      <View style={styles.incidentCard}>
+        <View style={styles.incidentHeader}>
+          <Text style={styles.incidentType}>{item.type}</Text>
+          <View style={[styles.severityBadge, { backgroundColor: getSeverityColor(item.severity) }]}>
+            <Text style={styles.severityText}>Severity {item.severity}</Text>
+          </View>
+        </View>
+        <Text style={styles.incidentLocation}>
+          {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
+        </Text>
+        <Text style={styles.incidentTime}>
+          {new Date(item.timestamp).toLocaleString()}
+        </Text>
+        <View style={styles.actionStatusContainer}>
+          <View style={[styles.actionStatusBadge, { backgroundColor: actionStatus.color }]}>
+            <Text style={styles.actionStatusText}>{actionStatus.text}</Text>
+          </View>
+        </View>
+        <View style={styles.syncBadge}>
+          <Text style={[styles.syncText, item.status === 'synced' ? styles.synced : item.status === 'failed' ? styles.failed : styles.unsynced]}>
+            {item.status === 'synced' ? '✓ Synced' : item.status === 'failed' ? '⚠ Failed' : '⏳ Pending Sync'}
+          </Text>
         </View>
       </View>
-      <Text style={styles.incidentLocation}>
-         {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
-      </Text>
-      <Text style={styles.incidentTime}>
-         {new Date(item.timestamp).toLocaleString()}
-      </Text>
-      <View style={styles.syncBadge}>
-        <Text style={[styles.syncText, item.status === 'synced' ? styles.synced : item.status === 'failed' ? styles.failed : styles.unsynced]}>
-          {item.status === 'synced' ? '✓ Synced' : item.status === 'failed' ? '⚠ Failed' : '⏳ Pending Sync'}
-        </Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   const renderAidRequest = ({ item }: { item: AidRequest }) => {
     const aidTypes = JSON.parse(item.aid_types) as string[];
@@ -510,6 +537,21 @@ const styles = StyleSheet.create({
   },
   unsynced: {
     color: '#ff9800',
+  },
+  actionStatusContainer: {
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  actionStatusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 4,
+  },
+  actionStatusText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   emptyContainer: {
     padding: 40,

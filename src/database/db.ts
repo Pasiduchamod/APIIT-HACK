@@ -10,6 +10,7 @@ export interface Incident {
   longitude: number;
   timestamp: number; // Unix timestamp in milliseconds
   status: 'pending' | 'synced' | 'failed'; // Changed from is_synced boolean
+  actionStatus?: 'pending' | 'taking action' | 'completed'; // Admin action status
   created_at: number;
   updated_at: number;
   // Image fields - Support up to 3 images per incident
@@ -32,8 +33,10 @@ class DatabaseService {
 
       // Open database
       this.db = await SQLite.openDatabaseAsync('ProjectAegis.db');
+      this.initialized = true; // Set immediately after opening DB
+      console.log('✓ Database opened successfully');
+      
       await this.createTables();
-      this.initialized = true;
       console.log('✓ Database initialized successfully');
     } catch (error) {
       console.error('Error initializing database:', error);
@@ -55,6 +58,7 @@ class DatabaseService {
           longitude REAL NOT NULL,
           timestamp INTEGER NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending',
+          actionStatus TEXT DEFAULT 'pending',
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL,
           localImageUri TEXT,
@@ -81,6 +85,9 @@ class DatabaseService {
 
       // Migration: Add image columns to existing databases
       await this.migrateImageColumns();
+
+      // Migration: Add actionStatus column
+      await this.migrateActionStatus();
 
       // Create index on status for efficient querying of unsynced records
       await this.db.execAsync(`
@@ -144,6 +151,30 @@ class DatabaseService {
     }
   }
 
+  /**
+   * Migrate existing databases to add actionStatus column
+   */
+  private async migrateActionStatus(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      // Check if actionStatus column exists
+      const tableInfo = await this.db.getAllAsync<{ name: string }>(
+        `PRAGMA table_info(incidents);`
+      );
+
+      const columnNames = tableInfo.map((col) => col.name);
+
+      if (!columnNames.includes('actionStatus')) {
+        await this.db.execAsync(`ALTER TABLE incidents ADD COLUMN actionStatus TEXT DEFAULT 'pending';`);
+        console.log('✓ Added actionStatus column');
+      }
+    } catch (error) {
+      console.error('Error migrating actionStatus column:', error);
+      // Don't throw - if migration fails, it might be because column already exists
+    }
+  }
+
   // Create a new incident
   async createIncident(
     incident: Omit<Incident, 'created_at' | 'updated_at'>
@@ -160,10 +191,10 @@ class DatabaseService {
     try {
       await this.db.runAsync(
         `INSERT INTO incidents (
-          id, type, severity, latitude, longitude, timestamp, status, 
+          id, type, severity, latitude, longitude, timestamp, status, actionStatus,
           created_at, updated_at, localImageUri, cloudImageUrl, 
           imageUploadStatus, imageQuality
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           fullIncident.id,
           fullIncident.type,
@@ -172,6 +203,7 @@ class DatabaseService {
           fullIncident.longitude,
           fullIncident.timestamp,
           fullIncident.status,
+          fullIncident.actionStatus || 'pending',
           fullIncident.created_at,
           fullIncident.updated_at,
           fullIncident.localImageUris ? JSON.stringify(fullIncident.localImageUris) : null,
@@ -307,6 +339,25 @@ class DatabaseService {
       );
     } catch (error) {
       console.error('Error updating incident status:', error);
+      throw error;
+    }
+  }
+
+  // Update incident action status
+  async updateIncidentActionStatus(
+    id: string,
+    actionStatus: 'pending' | 'taking_action' | 'completed'
+  ): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync(
+        'UPDATE incidents SET actionStatus = ?, updated_at = ? WHERE id = ?',
+        [actionStatus, Date.now(), id]
+      );
+      console.log(`✓ Updated incident ${id} actionStatus to ${actionStatus}`);
+    } catch (error) {
+      console.error('Error updating incident action status:', error);
       throw error;
     }
   }
