@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import HelpModal from '../components/HelpModal';
 import { INCIDENT_TYPES, IncidentType } from '../constants/config';
 import { dbService } from '../database/db';
 import { cloudSyncService } from '../services/cloudSyncService';
@@ -43,6 +44,9 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
   
   // Road Block specific fields
   const [roadBlockRoute, setRoadBlockRoute] = useState('');
+  
+  // Help modal state
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const MAX_IMAGES = 3;
 
@@ -344,10 +348,20 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
 
   return (
     <ScrollView style={styles.container}>
+      <HelpModal visible={showHelpModal} onClose={() => setShowHelpModal(false)} />
+      
       <View style={styles.header}>
         <Text style={styles.title}>Report Incident</Text>
-        <View style={[styles.statusBadge, isOnline ? styles.onlineBadge : styles.offlineBadge]}>
-          <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.helpButton}
+            onPress={() => setShowHelpModal(true)}
+          >
+            <Text style={styles.helpButtonText}>?</Text>
+          </TouchableOpacity>
+          <View style={[styles.statusBadge, isOnline ? styles.onlineBadge : styles.offlineBadge]}>
+            <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
+          </View>
         </View>
       </View>
 
@@ -513,6 +527,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+  headerRight: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12 
+  },
+  helpButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  helpButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   statusBadge: { padding: 6, borderRadius: 12 },
   onlineBadge: { backgroundColor: '#4caf50' },
   offlineBadge: { backgroundColor: '#f44336' },
