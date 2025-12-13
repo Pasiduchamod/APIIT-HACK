@@ -354,7 +354,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             style={styles.userIconButton}
             onPress={() => setShowMenu(!showMenu)}
           >
-            <Text style={styles.userIcon}>U</Text>
+            <Text style={styles.userIcon}>{user?.username?.charAt(0).toUpperCase() || 'U'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.syncButton, !isOnline && styles.syncButtonDisabled]}
@@ -613,17 +613,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   userIconButton: {
-    backgroundColor: '#fff',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    backgroundColor: '#2196f3',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    shadowColor: '#2196f3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   userIcon: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   dropdownMenu: {
     position: 'absolute',

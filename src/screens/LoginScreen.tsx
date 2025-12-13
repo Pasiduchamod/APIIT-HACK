@@ -118,18 +118,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             <Text style={styles.secondaryButtonText}>Create New Account</Text>
           </TouchableOpacity>
 
-          {isOnline && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoText}>🌐 Online Mode:</Text>
-              <Text style={styles.infoText}>• Login with your credentials</Text>
-              <Text style={styles.infoText}>• Or create a new account</Text>
-              
-              <Text style={[styles.infoText, { marginTop: 12, fontWeight: 'bold' }]}>
-                📱 Quick Demo:
-              </Text>
-              <Text style={styles.infoText}>Username: demo / Password: demo</Text>
-            </View>
-          )}
+
           
           {!isOnline && (
             <View style={styles.offlineBox}>
@@ -137,9 +126,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               <Text style={styles.offlineText}>
                 No internet connection detected. You can still use the app to record incidents locally.
                 Data will sync when connection is restored.
-              </Text>
-              <Text style={[styles.offlineText, { marginTop: 8, fontWeight: 'bold' }]}>
-                Demo credentials: demo / demo
               </Text>
             </View>
           )}
