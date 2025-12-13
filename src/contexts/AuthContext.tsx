@@ -1,5 +1,5 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AuthService } from '../services/authService';
 import { TokenStorage } from '../services/tokenStorage';
 
@@ -23,6 +23,7 @@ interface AuthContextType {
 
 interface RegisterData {
   name: string;
+  email: string;
   username: string;
   password: string;
   contactNumber: string;

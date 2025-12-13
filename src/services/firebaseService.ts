@@ -185,7 +185,6 @@ class FirebaseService {
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        console.log(`[FIREBASE] Incident ${doc.id.substring(0, 8)}: actionStatus=${data.actionStatus}`);
         incidents.push({
           ...data,
           id: doc.id,
@@ -543,6 +542,7 @@ class FirebaseService {
   async createUser(user: {
     id: number;
     username: string;
+    email?: string;
     name: string;
     contactNumber: string;
     district: string;

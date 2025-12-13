@@ -330,11 +330,8 @@ export class CloudSyncService {
             const cloudStatus = incident.actionStatus || 'pending';
             const localStatus = existing.actionStatus || 'pending';
             
-            console.log(`[DEBUG] Incident ${incident.id.substring(0, 8)}: Cloud=${cloudStatus}, Local=${localStatus}`);
-            
             if (cloudStatus !== localStatus) {
               // Update actionStatus if it changed in cloud
-              console.log(`[UPDATE] Updating incident ${incident.id.substring(0, 8)} from ${localStatus} to ${cloudStatus}`);
               await dbService.updateIncidentActionStatus(incident.id, cloudStatus);
               updated++;
             }

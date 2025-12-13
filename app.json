@@ -9,11 +9,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#0f172a"
     },
-    "extra": {
-      "eas": {
-        "projectId": "797c7b53-f02d-4354-8494-6a90c1fd5e1a"
-      }
-    },
+    "owner": "nimesh26",
     "android": {
       "package": "com.pasiduchamod.projectaegis",
       "versionCode": 1,
@@ -32,6 +28,11 @@
         "googleMaps": {
           "apiKey": "AIzaSyCwVz_cBTot2awm8L-nJVlmqndWa2KBWJM"
         }
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "06fe7cef-5751-455f-a62a-1e8ae9245086"
       }
     }
   }

@@ -1,6 +1,5 @@
-import { API_BASE_URL } from '../constants/config';
-import { TokenStorage } from './tokenStorage';
 import { firebaseService } from './firebaseService';
+import { TokenStorage } from './tokenStorage';
 
 export interface LoginCredentials {
   username: string;
@@ -9,6 +8,7 @@ export interface LoginCredentials {
 
 export interface RegisterData {
   name: string;
+  email: string;
   username: string;
   password: string;
   contactNumber: string;
@@ -90,6 +90,7 @@ export const AuthService = {
       const userRecord = {
         id: userId,
         username: userData.username,
+        email: userData.email,
         name: userData.name,
         contactNumber: userData.contactNumber,
         district: userData.district,
