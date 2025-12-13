@@ -2,14 +2,14 @@ import NetInfo from '@react-native-community/netinfo';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    Platform,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  FlatList,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { Incident, dbService } from '../database/db';
@@ -44,9 +44,34 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   useEffect(() => {
     loadData();
 
-    // Monitor network status
+    let previousOnlineState = true;
+
+    // Monitor network status and trigger sync when connection is restored
     const netInfoUnsubscribe = NetInfo.addEventListener(state => {
-      setIsOnline(state.isConnected ?? false);
+      const isCurrentlyOnline = state.isConnected ?? false;
+      setIsOnline(isCurrentlyOnline);
+      
+      // If connection was restored (offline -> online), trigger immediate sync
+      if (!previousOnlineState && isCurrentlyOnline) {
+        console.log('🌐 Internet connection restored - syncing data...');
+        (async () => {
+          try {
+            if (dbService.isInitialized()) {
+              const result = await cloudSyncService.syncFromCloud();
+              if (result.downloaded > 0) {
+                await loadData();
+                setLastSyncTime(new Date());
+                setShowUpdateBanner(true);
+                setTimeout(() => setShowUpdateBanner(false), 3000);
+              }
+            }
+          } catch (error) {
+            console.error('Error syncing after connection restore:', error);
+          }
+        })();
+      }
+      
+      previousOnlineState = isCurrentlyOnline;
     });
 
     // Listen to sync status
@@ -59,23 +84,23 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
     cloudSyncService.addSyncListener(handleSyncStatus);
 
-    // Auto-refresh every 5 seconds to get Firebase updates
+    // Auto-refresh every 5 seconds to get Firebase updates (only when online)
     const autoRefreshInterval = setInterval(async () => {
       try {
         if (!dbService.isInitialized()) return;
         
         const netInfo = await NetInfo.fetch();
         if (netInfo.isConnected && netInfo.isInternetReachable) {
-          console.log('🔄 Auto-refreshing from Firebase...');
           const result = await cloudSyncService.syncFromCloud();
+          // downloaded includes both new records and updates (e.g., actionStatus changes from dashboard)
           if (result.downloaded > 0) {
-            console.log(`📥 Auto-refresh: ${result.downloaded} updates received`);
+            console.log(`✅ Auto-sync: ${result.downloaded} updates received from Firebase`);
             await loadData();
             setLastSyncTime(new Date());
           }
         }
       } catch (error) {
-        console.error('Auto-refresh error:', error);
+        // Silent auto-refresh error
       }
     }, 5000); // 5 seconds
 
@@ -90,7 +115,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     try {
       // Check if database is initialized before attempting to load
       if (!dbService.isInitialized()) {
-        console.log('⏳ Database not yet initialized, waiting...');
         return;
       }
 
@@ -108,7 +132,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       const campPendingCount = await dbService.getPendingDetentionCampsCount();
       setUnsyncedCount(incidentPendingCount + aidRequestPendingCount + campPendingCount);
     } catch (error) {
-      console.error('Error loading data:', error);
+      // Silent error
     }
   };
 
@@ -116,24 +140,20 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     setIsRefreshing(true);
     try {
       if (isOnline) {
-        console.log('🔄 Starting full sync (pull from cloud + push to cloud)...');
         const result = await cloudSyncService.fullSync();
-        console.log(`✓ Sync complete: ${result.downloaded} downloaded, ${result.synced} uploaded`);
         setLastSyncTime(new Date());
         
         // Also sync images after data sync
-        console.log('📸 Syncing images...');
         await imageSyncService.syncAllPendingImages();
         
         if (result.downloaded > 0) {
-          console.log('📥 Action status updates received from Firebase');
           setShowUpdateBanner(true);
           setTimeout(() => setShowUpdateBanner(false), 3000);
         }
       }
       await loadData();
     } catch (error) {
-      console.error('Refresh error:', error);
+      // Silent refresh error
     } finally {
       setIsRefreshing(false);
     }
@@ -150,14 +170,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       
       // Check for pending images first
       const pendingIncidents = await dbService.getIncidentsWithPendingImages();
-      console.log(`📸 Found ${pendingIncidents.length} incidents with pending images`);
       
       // Sync data first
       const result = await cloudSyncService.syncToCloud();
       setLastSyncTime(new Date());
       
       // Then sync images
-      console.log('📸 Syncing images...');
       const imageResults = await imageSyncService.syncAllPendingImages();
       const imagesSynced = imageResults.filter(r => r.success).length;
       
@@ -171,7 +189,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         Alert.alert('Sync Failed', result.error || 'Unknown error');
       }
     } catch (error: any) {
-      console.error('Manual sync error:', error);
       Alert.alert('Sync Error', error.message || 'Failed to sync');
     } finally {
       setIsRefreshing(false);
@@ -190,6 +207,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   };
 
   const renderIncident = ({ item }: { item: Incident }) => {
+    console.log(`[RENDER] Incident ${item.id.substring(0, 8)}: actionStatus=${item.actionStatus}`);
+    
     const getActionStatusDisplay = (status?: string) => {
       switch (status) {
         case 'taking action':
@@ -257,18 +276,15 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         
         // Auto-sync if online
         if (isOnline) {
-          console.log('🔄 Auto-syncing aid status update to Firebase...');
           try {
             await cloudSyncService.syncToCloud();
-            console.log('✓ Aid status synced to Firebase');
           } catch (syncError) {
-            console.warn('⚠ Failed to sync immediately, will retry later:', syncError);
+            // Will retry later
           }
         }
         
         Alert.alert('Success', 'Aid marked as received! Thank you for confirming.');
       } catch (error) {
-        console.error('Failed to update aid status:', error);
         Alert.alert('Error', 'Failed to update aid status');
       }
     };

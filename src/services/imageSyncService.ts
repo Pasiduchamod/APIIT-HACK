@@ -1,7 +1,7 @@
-import NetInfo, { NetInfoState, NetInfoStateType } from '@react-native-community/netinfo';
+import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { dbService } from '../database/db';
-import { imageService } from './imageService';
 import { FirebaseStorageService } from './firebaseStorageService';
+import { imageService } from './imageService';
 
 /**
  * ImageSyncService
@@ -404,40 +404,26 @@ export class ImageSyncService {
    */
   async syncAllPendingImages(): Promise<SyncResult[]> {
     if (this.syncInProgress) {
-      console.log('⏳ Image sync already in progress, skipping...');
       return [];
     }
 
     try {
       this.syncInProgress = true;
-      console.log('🔄 Starting image sync...');
 
       const incidents = await dbService.getIncidentsWithPendingImages();
 
       if (incidents.length === 0) {
-        console.log('✅ No images to sync');
         return [];
       }
-
-      console.log(`📸 Found ${incidents.length} incident(s) with pending images`);
-      
-      // Log details about pending images
-      incidents.forEach(incident => {
-        console.log(`  - Incident ${incident.id}:`);
-        console.log(`    Local URIs: ${incident.localImageUris?.length || 0} images`);
-        console.log(`    Upload statuses: ${JSON.stringify(incident.imageUploadStatuses)}`);
-      });
 
       const results: SyncResult[] = [];
 
       for (const incident of incidents) {
         const result = await this.syncIncidentImage(incident.id);
         results.push(result);
-        console.log(`  Result for ${incident.id}: ${result.action} (${result.success ? 'success' : 'failed'})`);
       }
 
       const successful = results.filter((r) => r.success).length;
-      console.log(`✅ Image sync complete: ${successful}/${incidents.length} successful`);
 
       return results;
     } finally {
@@ -449,13 +435,10 @@ export class ImageSyncService {
    * Start automatic image sync when network improves
    * Listens for network state changes and triggers sync
    */
-  startAutoSync(): void {
+  startAutoSync() {
     if (this.autoSyncEnabled) {
-      console.log('⚠️ Auto-sync already enabled');
       return;
     }
-
-    console.log('🚀 Starting automatic image sync');
 
     this.networkListener = NetInfo.addEventListener((state: NetInfoState) => {
       if (state.isConnected && state.isInternetReachable) {
@@ -478,7 +461,6 @@ export class ImageSyncService {
       this.networkListener = null;
     }
     this.autoSyncEnabled = false;
-    console.log('🛑 Automatic image sync stopped');
   }
 
   /**
