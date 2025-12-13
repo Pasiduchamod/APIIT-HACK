@@ -40,6 +40,24 @@ export interface DetentionCamp {
   updated_at: number;
 }
 
+// Define Volunteer interface for type safety
+export interface Volunteer {
+  id: string;
+  user_email: string;
+  full_name: string;
+  phone_number: string;
+  district: string; // Sri Lankan district
+  skills: string; // JSON string array
+  availability: string; // e.g., "Weekdays", "Weekends", "Anytime"
+  preferred_tasks: string; // JSON string array
+  emergency_contact?: string;
+  emergency_phone?: string;
+  status: 'pending' | 'synced' | 'failed'; // Sync status
+  approved: boolean; // Admin approval status
+  created_at: number;
+  updated_at: number;
+}
+
 class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
   private initialized = false;
@@ -129,6 +147,26 @@ class DatabaseService {
         );
       `);
 
+      // Create volunteers table
+      await this.db.execAsync(`
+        CREATE TABLE IF NOT EXISTS volunteers (
+          id TEXT PRIMARY KEY,
+          user_email TEXT NOT NULL,
+          full_name TEXT NOT NULL,
+          phone_number TEXT NOT NULL,
+          district TEXT NOT NULL,
+          skills TEXT NOT NULL,
+          availability TEXT NOT NULL,
+          preferred_tasks TEXT NOT NULL,
+          emergency_contact TEXT,
+          emergency_phone TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          approved INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
       // Migration: Add image columns to existing databases
       await this.migrateImageColumns();
 
@@ -165,6 +203,14 @@ class DatabaseService {
       `);
       await this.db.execAsync(`
         CREATE INDEX IF NOT EXISTS idx_camps_approved ON detention_camps(adminApproved);
+      `);
+
+      // Create index on volunteers status for efficient querying
+      await this.db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_volunteers_status ON volunteers(status);
+      `);
+      await this.db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_volunteers_email ON volunteers(user_email);
       `);
 
       console.log('✓ Tables created successfully');
@@ -1083,6 +1129,264 @@ class DatabaseService {
       await this.db.runAsync('DELETE FROM detention_camps WHERE id = ?', [id]);
     } catch (error) {
       console.error('Error deleting detention camp:', error);
+      throw error;
+    }
+  }
+
+  // ============= VOLUNTEER METHODS =============
+
+  // Create a new volunteer registration
+  async createVolunteer(volunteer: Omit<Volunteer, 'created_at' | 'updated_at'>): Promise<Volunteer> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const now = Date.now();
+    const fullVolunteer: Volunteer = {
+      ...volunteer,
+      created_at: now,
+      updated_at: now,
+    };
+
+    try {
+      await this.db.runAsync(
+        `INSERT INTO volunteers (
+          id, user_email, full_name, phone_number, district, skills, availability, 
+          preferred_tasks, emergency_contact, emergency_phone, status, approved, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          fullVolunteer.id,
+          fullVolunteer.user_email,
+          fullVolunteer.full_name,
+          fullVolunteer.phone_number,
+          fullVolunteer.district,
+          fullVolunteer.skills,
+          fullVolunteer.availability,
+          fullVolunteer.preferred_tasks,
+          fullVolunteer.emergency_contact || null,
+          fullVolunteer.emergency_phone || null,
+          fullVolunteer.status,
+          fullVolunteer.approved ? 1 : 0,
+          fullVolunteer.created_at,
+          fullVolunteer.updated_at,
+        ]
+      );
+
+      console.log('✓ Volunteer registered:', fullVolunteer.user_email);
+      return fullVolunteer;
+    } catch (error) {
+      console.error('Error creating volunteer:', error);
+      throw error;
+    }
+  }
+
+  // Get all volunteers sorted by created_at descending
+  async getAllVolunteers(): Promise<Volunteer[]> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getAllAsync<any>(
+        'SELECT * FROM volunteers ORDER BY created_at DESC'
+      );
+      return (result || []).map(row => ({
+        ...row,
+        approved: row.approved === 1
+      }));
+    } catch (error) {
+      console.error('Error getting all volunteers:', error);
+      throw error;
+    }
+  }
+
+  // Get volunteer by email
+  async getVolunteerByEmail(email: string): Promise<Volunteer | null> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getFirstAsync<any>(
+        'SELECT * FROM volunteers WHERE user_email = ?',
+        [email]
+      );
+      
+      if (!result) return null;
+      
+      return {
+        ...result,
+        approved: result.approved === 1
+      };
+    } catch (error) {
+      console.error('Error getting volunteer by email:', error);
+      throw error;
+    }
+  }
+
+  // Get volunteer by ID
+  async getVolunteerById(id: string): Promise<Volunteer | null> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getFirstAsync<any>(
+        'SELECT * FROM volunteers WHERE id = ?',
+        [id]
+      );
+      
+      if (!result) return null;
+      
+      return {
+        ...result,
+        approved: result.approved === 1
+      };
+    } catch (error) {
+      console.error('Error getting volunteer by id:', error);
+      throw error;
+    }
+  }
+
+  // Get volunteers with pending status (not yet synced)
+  async getPendingVolunteers(): Promise<Volunteer[]> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getAllAsync<any>(
+        "SELECT * FROM volunteers WHERE status = 'pending' OR status = 'failed' ORDER BY created_at ASC"
+      );
+      return (result || []).map(row => ({
+        ...row,
+        approved: row.approved === 1
+      }));
+    } catch (error) {
+      console.error('Error getting pending volunteers:', error);
+      throw error;
+    }
+  }
+
+  // Get count of pending volunteers
+  async getPendingVolunteersCount(): Promise<number> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getFirstAsync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM volunteers WHERE status = 'pending' OR status = 'failed'"
+      );
+      return result?.count ?? 0;
+    } catch (error) {
+      console.error('Error getting pending volunteers count:', error);
+      throw error;
+    }
+  }
+
+  // Get unapproved volunteers
+  async getUnapprovedVolunteers(): Promise<Volunteer[]> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getAllAsync<any>(
+        'SELECT * FROM volunteers WHERE approved = 0 ORDER BY created_at ASC'
+      );
+      return (result || []).map(row => ({
+        ...row,
+        approved: row.approved === 1
+      }));
+    } catch (error) {
+      console.error('Error getting unapproved volunteers:', error);
+      throw error;
+    }
+  }
+
+  // Update volunteer status
+  async updateVolunteerStatus(
+    id: string,
+    status: 'pending' | 'synced' | 'failed'
+  ): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync(
+        'UPDATE volunteers SET status = ?, updated_at = ? WHERE id = ?',
+        [status, Date.now(), id]
+      );
+    } catch (error) {
+      console.error('Error updating volunteer status:', error);
+      throw error;
+    }
+  }
+
+  // Update volunteer approval status
+  async updateVolunteerApproval(
+    id: string,
+    approved: boolean
+  ): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync(
+        'UPDATE volunteers SET approved = ?, updated_at = ? WHERE id = ?',
+        [approved ? 1 : 0, Date.now(), id]
+      );
+      console.log(`✓ Updated volunteer ${id} approval to ${approved}`);
+    } catch (error) {
+      console.error('Error updating volunteer approval:', error);
+      throw error;
+    }
+  }
+
+  // Update volunteer details
+  async updateVolunteer(id: string, updates: Partial<Volunteer>): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (updates.full_name !== undefined) {
+        fields.push('full_name = ?');
+        values.push(updates.full_name);
+      }
+      if (updates.phone_number !== undefined) {
+        fields.push('phone_number = ?');
+        values.push(updates.phone_number);
+      }
+      if (updates.skills !== undefined) {
+        fields.push('skills = ?');
+        values.push(updates.skills);
+      }
+      if (updates.availability !== undefined) {
+        fields.push('availability = ?');
+        values.push(updates.availability);
+      }
+      if (updates.preferred_tasks !== undefined) {
+        fields.push('preferred_tasks = ?');
+        values.push(updates.preferred_tasks);
+      }
+      if (updates.emergency_contact !== undefined) {
+        fields.push('emergency_contact = ?');
+        values.push(updates.emergency_contact);
+      }
+      if (updates.emergency_phone !== undefined) {
+        fields.push('emergency_phone = ?');
+        values.push(updates.emergency_phone);
+      }
+
+      fields.push('updated_at = ?');
+      values.push(Date.now());
+      values.push(id);
+
+      await this.db.runAsync(
+        `UPDATE volunteers SET ${fields.join(', ')} WHERE id = ?`,
+        values
+      );
+    } catch (error) {
+      console.error('Error updating volunteer:', error);
+      throw error;
+    }
+  }
+
+  // Delete volunteer
+  async deleteVolunteer(id: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync('DELETE FROM volunteers WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error deleting volunteer:', error);
       throw error;
     }
   }

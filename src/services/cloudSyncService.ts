@@ -161,13 +161,16 @@ export class CloudSyncService {
       // Get pending detention camps from SQLite
       const pendingCamps = await dbService.getPendingDetentionCamps();
 
-      if (pendingIncidents.length === 0 && pendingAidRequests.length === 0 && pendingCamps.length === 0) {
-        console.log('No incidents, aid requests, or camps to sync.');
+      // Get pending volunteers from SQLite
+      const pendingVolunteers = await dbService.getPendingVolunteers();
+
+      if (pendingIncidents.length === 0 && pendingAidRequests.length === 0 && pendingCamps.length === 0 && pendingVolunteers.length === 0) {
+        console.log('No incidents, aid requests, camps, or volunteers to sync.');
         this.notifyListeners('idle');
         return { success: true, synced: 0 };
       }
 
-      console.log(`Found ${pendingIncidents.length} pending incidents, ${pendingAidRequests.length} pending aid requests, and ${pendingCamps.length} pending camps. Syncing to Firebase...`);
+      console.log(`Found ${pendingIncidents.length} pending incidents, ${pendingAidRequests.length} pending aid requests, ${pendingCamps.length} pending camps, and ${pendingVolunteers.length} pending volunteers. Syncing to Firebase...`);
 
       let totalSynced = 0;
 
@@ -249,6 +252,34 @@ export class CloudSyncService {
           }
         } catch (campSyncError: any) {
           console.error('Detention camp sync failed:', campSyncError);
+          // Don't throw - partial sync is acceptable
+        }
+      }
+
+      // Sync volunteers to Firestore with error handling
+      if (pendingVolunteers.length > 0) {
+        try {
+          const syncResult = await firebaseService.syncVolunteers(pendingVolunteers, user.id.toString());
+
+          if (syncResult.success > 0) {
+            // Update synced volunteers in local database
+            const syncedIds = pendingVolunteers
+              .slice(0, syncResult.success)
+              .map(v => v.id);
+
+            // Update status to synced for all successfully synced volunteers
+            for (const id of syncedIds) {
+              await dbService.updateVolunteerStatus(id, 'synced');
+            }
+            console.log(`✓ Successfully synced ${syncResult.success} volunteers to Firebase`);
+            totalSynced += syncResult.success;
+          }
+
+          if (syncResult.failed > 0) {
+            console.warn(`⚠ ${syncResult.failed} volunteers failed to sync`);
+          }
+        } catch (volunteerSyncError: any) {
+          console.error('Volunteer sync failed:', volunteerSyncError);
           // Don't throw - partial sync is acceptable
         }
       }

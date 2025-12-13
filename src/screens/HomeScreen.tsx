@@ -443,6 +443,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         >
           <Text style={styles.campsButtonText}>View Camps</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.volunteerButton}
+          onPress={() => navigation.navigate('VolunteerForm')}
+        >
+          <Text style={styles.volunteerButtonText}>Volunteer</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Tab Selector */}
@@ -750,6 +756,18 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   campsButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  volunteerButton: {
+    backgroundColor: '#8b5cf6',
+    padding: 18,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  volunteerButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',

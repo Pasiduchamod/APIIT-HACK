@@ -13,6 +13,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import IncidentFormScreen from './src/screens/IncidentFormScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import VolunteerFormScreen from './src/screens/VolunteerFormScreen';
 import { initializeApp } from './src/utils/appInitializer';
 
 const Stack = createNativeStackNavigator();
@@ -101,6 +102,21 @@ function Navigation() {
               options={{
                 headerShown: true,
                 title: 'Add New Camp',
+                headerStyle: {
+                  backgroundColor: '#1a1a2e',
+                },
+                headerTintColor: '#fff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen 
+              name="VolunteerForm" 
+              component={VolunteerFormScreen}
+              options={{
+                headerShown: true,
+                title: 'Volunteer Registration',
                 headerStyle: {
                   backgroundColor: '#1a1a2e',
                 },

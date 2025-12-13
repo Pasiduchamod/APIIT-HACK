@@ -729,6 +729,113 @@ class FirebaseService {
       throw error;
     }
   }
+
+  // ============= VOLUNTEER METHODS =============
+
+  /**
+   * SYNC: Upload volunteers to Firestore
+   */
+  async syncVolunteers(volunteers: any[], userId: string): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    for (const volunteer of volunteers) {
+      try {
+        const volunteerRef = doc(db, 'volunteers', volunteer.id);
+
+        await withTimeout(
+          setDoc(volunteerRef, {
+            id: volunteer.id,
+            user_email: volunteer.user_email,
+            full_name: volunteer.full_name,
+            phone_number: volunteer.phone_number,
+            skills: volunteer.skills, // JSON string
+            availability: volunteer.availability,
+            preferred_tasks: volunteer.preferred_tasks, // JSON string
+            emergency_contact: volunteer.emergency_contact || null,
+            emergency_phone: volunteer.emergency_phone || null,
+            approved: false, // New volunteers need admin approval
+            userId,
+            created_at: volunteer.created_at,
+            updated_at: Date.now(),
+          }),
+          8000,
+          'Sync volunteer'
+        );
+
+        success++;
+        console.log(`✓ Synced volunteer ${volunteer.id} to Firebase`);
+      } catch (error) {
+        console.error(`✗ Failed to sync volunteer ${volunteer.id}:`, error);
+        failed++;
+      }
+    }
+
+    return { success, failed };
+  }
+
+  /**
+   * READ: Get all volunteers
+   */
+  async getVolunteers(): Promise<any[]> {
+    try {
+      const volunteersRef = collection(db, 'volunteers');
+
+      const querySnapshot = await withTimeout(
+        getDocs(volunteersRef),
+        10000,
+        'Get volunteers'
+      );
+
+      const volunteers: any[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        volunteers.push({
+          id: data.id,
+          user_email: data.user_email,
+          full_name: data.full_name,
+          phone_number: data.phone_number,
+          skills: data.skills,
+          availability: data.availability,
+          preferred_tasks: data.preferred_tasks,
+          emergency_contact: data.emergency_contact,
+          emergency_phone: data.emergency_phone,
+          approved: data.approved ?? false,
+          userId: data.userId,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+        });
+      });
+
+      return volunteers;
+    } catch (error) {
+      console.error('Error getting volunteers:', error);
+      return [];
+    }
+  }
+
+  /**
+   * UPDATE: Update volunteer approval status
+   */
+  async updateVolunteerApproval(volunteerId: string, approved: boolean): Promise<void> {
+    try {
+      const volunteerRef = doc(db, 'volunteers', volunteerId);
+
+      await withTimeout(
+        updateDoc(volunteerRef, {
+          approved,
+          updated_at: Date.now(),
+        }),
+        8000,
+        'Update volunteer approval'
+      );
+
+      console.log(`✓ Updated volunteer ${volunteerId} approval to ${approved} in Firebase`);
+    } catch (error) {
+      console.error('Error updating volunteer approval:', error);
+      throw error;
+    }
+  }
 }
 
 export const firebaseService = FirebaseService.getInstance();
