@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { AidRequest } from './models/AidRequest';
 
 // Define Incident interface for type safety
 export interface Incident {
@@ -63,6 +64,21 @@ class DatabaseService {
         );
       `);
 
+      // Create aid_requests table
+      await this.db.execAsync(`
+        CREATE TABLE IF NOT EXISTS aid_requests (
+          id TEXT PRIMARY KEY,
+          aid_types TEXT NOT NULL,
+          latitude REAL NOT NULL,
+          longitude REAL NOT NULL,
+          description TEXT,
+          priority_level INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
       // Migration: Add image columns to existing databases
       await this.migrateImageColumns();
 
@@ -74,6 +90,11 @@ class DatabaseService {
       // Create index on imageUploadStatus for efficient image sync queries
       await this.db.execAsync(`
         CREATE INDEX IF NOT EXISTS idx_incidents_image_status ON incidents(imageUploadStatus);
+      `);
+
+      // Create index on aid_requests status for efficient querying
+      await this.db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_aid_requests_status ON aid_requests(status);
       `);
 
       console.log('✓ Tables created successfully');
@@ -418,6 +439,157 @@ class DatabaseService {
   // Check if database is initialized
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  // ========== AID REQUEST OPERATIONS ==========
+
+  // Create a new aid request
+  async createAidRequest(
+    aidRequest: Omit<AidRequest, 'created_at' | 'updated_at'>
+  ): Promise<AidRequest> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const now = Date.now();
+    const fullAidRequest: AidRequest = {
+      ...aidRequest,
+      created_at: now,
+      updated_at: now,
+    };
+
+    try {
+      await this.db.runAsync(
+        `INSERT INTO aid_requests (
+          id, aid_types, latitude, longitude, description, priority_level, 
+          status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          fullAidRequest.id,
+          fullAidRequest.aid_types,
+          fullAidRequest.latitude,
+          fullAidRequest.longitude,
+          fullAidRequest.description,
+          fullAidRequest.priority_level,
+          fullAidRequest.status,
+          fullAidRequest.created_at,
+          fullAidRequest.updated_at,
+        ]
+      );
+
+      return fullAidRequest;
+    } catch (error) {
+      console.error('Error creating aid request:', error);
+      throw error;
+    }
+  }
+
+  // Get all aid requests sorted by created_at descending
+  async getAllAidRequests(): Promise<AidRequest[]> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getAllAsync<AidRequest>(
+        'SELECT * FROM aid_requests ORDER BY created_at DESC'
+      );
+      return result || [];
+    } catch (error) {
+      console.error('Error getting all aid requests:', error);
+      throw error;
+    }
+  }
+
+  // Get aid requests with pending status (not yet synced)
+  async getPendingAidRequests(): Promise<AidRequest[]> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getAllAsync<AidRequest>(
+        "SELECT * FROM aid_requests WHERE status = 'pending' OR status = 'failed' ORDER BY created_at ASC"
+      );
+      return result || [];
+    } catch (error) {
+      console.error('Error getting pending aid requests:', error);
+      throw error;
+    }
+  }
+
+  // Get count of pending aid requests
+  async getPendingAidRequestsCount(): Promise<number> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getFirstAsync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM aid_requests WHERE status = 'pending' OR status = 'failed'"
+      );
+      return result?.count ?? 0;
+    } catch (error) {
+      console.error('Error getting pending aid requests count:', error);
+      throw error;
+    }
+  }
+
+  // Update aid request status
+  async updateAidRequestStatus(
+    id: string,
+    status: 'pending' | 'synced' | 'failed'
+  ): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync(
+        'UPDATE aid_requests SET status = ?, updated_at = ? WHERE id = ?',
+        [status, Date.now(), id]
+      );
+    } catch (error) {
+      console.error('Error updating aid request status:', error);
+      throw error;
+    }
+  }
+
+  // Update multiple aid requests status
+  async updateAidRequestsStatus(
+    ids: string[],
+    status: 'pending' | 'synced' | 'failed'
+  ): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const placeholders = ids.map(() => '?').join(',');
+      await this.db.runAsync(
+        `UPDATE aid_requests SET status = ?, updated_at = ? WHERE id IN (${placeholders})`,
+        [status, Date.now(), ...ids]
+      );
+    } catch (error) {
+      console.error('Error updating multiple aid request statuses:', error);
+      throw error;
+    }
+  }
+
+  // Get single aid request by id
+  async getAidRequestById(id: string): Promise<AidRequest | null> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = await this.db.getFirstAsync<AidRequest>(
+        'SELECT * FROM aid_requests WHERE id = ?',
+        [id]
+      );
+      return result || null;
+    } catch (error) {
+      console.error('Error getting aid request by id:', error);
+      throw error;
+    }
+  }
+
+  // Delete aid request
+  async deleteAidRequest(id: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      await this.db.runAsync('DELETE FROM aid_requests WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error deleting aid request:', error);
+      throw error;
+    }
   }
 }
 

@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Incident } from '../database/db';
+import { AidRequest } from '../database/models/AidRequest';
 
 /**
  * FIRESTORE COLLECTIONS SCHEMA
@@ -38,9 +39,41 @@ export interface FirebaseIncident extends Incident {
   imageUrl?: string;
 }
 
+export interface FirebaseAidRequest extends AidRequest {
+  userId?: string;
+}
+
+/**
+ * Timeout wrapper for Firebase operations
+ * Prevents app crashes from hanging Firebase calls
+ */
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number = 8000,
+  operationName: string = 'Firebase operation'
+): Promise<T> => {
+  let timeoutHandle: NodeJS.Timeout;
+  
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`${operationName} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutHandle!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutHandle!);
+    throw error;
+  }
+};
+
 class FirebaseService {
   private static instance: FirebaseService;
   private incidentsCollection = 'incidents';
+  private aidRequestsCollection = 'aid_requests';
 
   private constructor() {}
 
@@ -67,7 +100,11 @@ class FirebaseService {
         timestamp: incident.timestamp,
       };
 
-      await setDoc(incidentRef, firebaseIncident);
+      await withTimeout(
+        setDoc(incidentRef, firebaseIncident),
+        8000,
+        'Create incident'
+      );
       console.log('✓ Incident created in Firestore:', incident.id);
       return incident.id;
     } catch (error) {
@@ -284,11 +321,15 @@ class FirebaseService {
           const incidentRef = doc(db, this.incidentsCollection, incident.id);
           const now = Timestamp.now().toMillis();
 
-          await setDoc(incidentRef, {
-            ...incident,
-            userId,
-            updated_at: now,
-          }, { merge: true });
+          await withTimeout(
+            setDoc(incidentRef, {
+              ...incident,
+              userId,
+              updated_at: now,
+            }, { merge: true }),
+            8000,
+            `Sync incident ${incident.id}`
+          );
 
           success++;
         } catch (error) {
@@ -301,7 +342,7 @@ class FirebaseService {
       return { success, failed };
     } catch (error) {
       console.error('Error during bulk sync:', error);
-      throw error;
+      return { success, failed };
     }
   }
 
@@ -354,6 +395,97 @@ class FirebaseService {
       return counts;
     } catch (error) {
       console.error('Error getting count by type:', error);
+      throw error;
+    }
+  }
+
+  // ========== AID REQUEST OPERATIONS ==========
+
+  /**
+   * CREATE: Add new aid request to Firestore
+   */
+  async createAidRequest(aidRequest: Omit<FirebaseAidRequest, 'created_at' | 'updated_at'>, userId: string): Promise<string> {
+    try {
+      const now = Timestamp.now();
+      const aidRequestRef = doc(db, this.aidRequestsCollection, aidRequest.id);
+
+      const firebaseAidRequest: FirebaseAidRequest = {
+        ...aidRequest,
+        userId,
+        created_at: now.toMillis(),
+        updated_at: now.toMillis(),
+      };
+
+      await setDoc(aidRequestRef, firebaseAidRequest);
+      console.log('✓ Aid request created in Firestore:', aidRequest.id);
+      return aidRequest.id;
+    } catch (error) {
+      console.error('Error creating aid request in Firestore:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * SYNC: Batch sync aid requests to Firestore
+   */
+  async syncAidRequests(aidRequests: FirebaseAidRequest[], userId: string): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    try {
+      for (const aidRequest of aidRequests) {
+        try {
+          const aidRequestRef = doc(db, this.aidRequestsCollection, aidRequest.id);
+          const now = Timestamp.now().toMillis();
+
+          await withTimeout(
+            setDoc(aidRequestRef, {
+              ...aidRequest,
+              userId,
+              updated_at: now,
+            }, { merge: true }),
+            8000,
+            `Sync aid request ${aidRequest.id}`
+          );
+
+          success++;
+        } catch (error) {
+          console.error(`Failed to sync aid request ${aidRequest.id}:`, error);
+          failed++;
+        }
+      }
+
+      console.log(`✓ Aid request sync complete: ${success} successful, ${failed} failed`);
+      return { success, failed };
+    } catch (error) {
+      console.error('Error during aid request bulk sync:', error);
+      return { success, failed };
+    }
+  }
+
+  /**
+   * READ: Get all aid requests
+   */
+  async getAllAidRequests(): Promise<FirebaseAidRequest[]> {
+    try {
+      const querySnapshot = await getDocs(collection(db, this.aidRequestsCollection));
+      return querySnapshot.docs.map((doc) => doc.data() as FirebaseAidRequest);
+    } catch (error) {
+      console.error('Error getting aid requests:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * READ: Get aid requests by user
+   */
+  async getAidRequestsByUser(userId: string): Promise<FirebaseAidRequest[]> {
+    try {
+      const q = query(collection(db, this.aidRequestsCollection), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map((doc) => doc.data() as FirebaseAidRequest);
+    } catch (error) {
+      console.error('Error getting user aid requests:', error);
       throw error;
     }
   }

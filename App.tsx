@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import HomeScreen from './src/screens/HomeScreen';
 import IncidentFormScreen from './src/screens/IncidentFormScreen';
+import AidRequestFormScreen from './src/screens/AidRequestFormScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import { initializeApp } from './src/utils/appInitializer';
 
@@ -43,6 +44,21 @@ function Navigation() {
               options={{
                 headerShown: true,
                 title: 'Report Incident',
+                headerStyle: {
+                  backgroundColor: '#1a1a2e',
+                },
+                headerTintColor: '#fff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen 
+              name="AidRequestForm" 
+              component={AidRequestFormScreen}
+              options={{
+                headerShown: true,
+                title: 'Request Aid',
                 headerStyle: {
                   backgroundColor: '#1a1a2e',
                 },

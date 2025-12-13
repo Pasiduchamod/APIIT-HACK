@@ -12,3 +12,17 @@ export const INCIDENT_TYPES = [
 ] as const;
 
 export type IncidentType = typeof INCIDENT_TYPES[number];
+
+// Aid Request Types
+export const AID_TYPES = [
+  'Food',
+  'Drinking Water',
+  'Clothing',
+  'Medical Aid',
+  'Shelter',
+  'Rescue / Evacuation',
+  'Elderly / Child Assistance',
+  'Emergency Supplies',
+] as const;
+
+export type AidType = typeof AID_TYPES[number];
