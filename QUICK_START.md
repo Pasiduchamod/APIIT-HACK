@@ -353,6 +353,7 @@ Then import and use in your app for debugging.
 ### Debugging
 
 Press **`j`** in terminal to open debugger, or:
+
 - Shake your device
 - Tap "Debug Remote JS"
 - Chrome DevTools will open

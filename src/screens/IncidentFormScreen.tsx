@@ -167,7 +167,7 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
         type: 'info',
         text1: 'Limit Reached',
         text2: `You can only add up to ${MAX_IMAGES} images.`,
-        position: 'bottom',
+        position: 'top',
       });
       return;
     }
@@ -422,7 +422,7 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
             style={styles.picker}
           >
             {INCIDENT_TYPES.map((t) => (
-              <Picker.Item key={t} label={t} value={t} />
+              <Picker.Item key={t} label={t} value={t} color="#000" />
             ))}
           </Picker>
         </View>
@@ -592,8 +592,16 @@ const styles = StyleSheet.create({
   statusText: { color: '#fff', fontSize: 12 },
   form: { padding: 20 },
   label: { fontWeight: 'bold', marginTop: 15 },
-  pickerContainer: { backgroundColor: '#fff', borderRadius: 8 },
-  picker: { height: 52 },
+  pickerContainer: { 
+    backgroundColor: '#fff', 
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  picker: { 
+    height: 52,
+    color: '#000',
+  },
   severityContainer: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 

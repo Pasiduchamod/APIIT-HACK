@@ -96,7 +96,7 @@ export default function CampFormScreen({ navigation }: CampFormScreenProps) {
         type: 'error',
         text1: 'Validation Error',
         text2: 'Please enter camp name',
-        position: 'bottom',
+        position: 'top',
       });
       return false;
     }

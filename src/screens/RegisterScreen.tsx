@@ -70,7 +70,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
         type: 'error',
         text1: 'Name Required',
         text2: 'Please enter your name',
-        position: 'bottom',
+        position: 'top',
       });
       return;
     }

@@ -40,7 +40,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         type: 'error',
         text1: 'Missing Information',
         text2: 'Please enter username and password',
-        position: 'bottom',
+        position: 'top',
       });
       return;
     }
@@ -52,7 +52,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         type: 'success',
         text1: 'Login Successful',
         text2: 'Welcome back!',
-        position: 'bottom',
+        position: 'top',
         visibilityTime: 2000,
       });
       // Navigation handled by AuthContext state change
@@ -78,7 +78,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         type: 'error',
         text1: errorTitle,
         text2: errorMessage,
-        position: 'bottom',
+        position: 'top',
         visibilityTime: 4000,
       });
     } finally {
