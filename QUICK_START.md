@@ -1,21 +1,82 @@
-# Quick Start Guide - Running in Expo Go
+# Quick Start Guide - LankaSafe Disaster Response App
 
 ## Prerequisites
 
-- Node.js 18+ installed
-- Expo CLI: `npm install -g expo-cli`
-- Expo Go app on iOS or Android device/emulator
+Before you begin, make sure you have:
 
-## Setup (Already Done!)
+- **Node.js 18+** installed ([Download here](https://nodejs.org/))
+- **Git** installed ([Download here](https://git-scm.com/))
+- **Expo Go** app on your iOS or Android device ([iOS](https://apps.apple.com/app/expo-go/id982107779) | [Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
+- A **GitHub account** (for forking)
 
-Dependencies are installed. Database is configured. You're ready to go!
+## Step 1: Get the Code
 
-## Running the App
+### Option A: Fork the Repository (Recommended)
 
-### Option 1: Start Expo Server
+1. Go to the GitHub repository: `https://github.com/YOUR-USERNAME/APIIT-HACK`
+2. Click the **"Fork"** button in the top-right corner
+3. Wait for GitHub to create your copy
+4. Clone your forked repository:
 
 ```bash
-cd c:\Users\Nimesh\Downloads\sqlite\APIIT-HACK
+git clone https://github.com/YOUR-USERNAME/APIIT-HACK.git
+cd APIIT-HACK
+```
+
+### Option B: Clone Directly
+
+```bash
+git clone https://github.com/ORIGINAL-USERNAME/APIIT-HACK.git
+cd APIIT-HACK
+```
+
+## Step 2: Install Dependencies
+
+Run this command in the project folder:
+
+```bash
+npm install
+```
+
+**Expected output:**
+
+```
+added 1234 packages in 45s
+```
+
+This installs all required libraries including:
+
+- React Native
+- Expo SDK
+- Firebase
+- SQLite database
+- And more...
+
+## Step 3: Configure Firebase (Important!)
+
+1. Create a Firebase project at [https://console.firebase.google.com](https://console.firebase.google.com)
+2. Add a Web app to your project
+3. Copy your Firebase configuration
+4. Open `src/config/firebase.ts` and replace with your credentials:
+
+```typescript
+const firebaseConfig = {
+  apiKey: "YOUR-API-KEY",
+  authDomain: "YOUR-PROJECT.firebaseapp.com",
+  projectId: "YOUR-PROJECT-ID",
+  storageBucket: "YOUR-PROJECT.appspot.com",
+  messagingSenderId: "YOUR-SENDER-ID",
+  appId: "YOUR-APP-ID",
+};
+```
+
+5. Enable **Authentication** (Email/Password) in Firebase Console
+6. Enable **Firestore Database** in Firebase Console
+7. Enable **Storage** in Firebase Console
+
+## Step 4: Start the Development Server
+
+```bash
 npm start
 ```
 
@@ -24,21 +85,50 @@ npm start
 ```
 Starting Metro Bundler
 ...
-expo: Waiting on LAN interface...
+Metro waiting on exp://192.168.1.100:8081
   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-  █ QR Code here █
-  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+  █ ▄▄▄▄▄ █▀█ █ ▄▄▄▄▄ █
+  █ █   █ █▀▀▀█ █   █ █
+  █ █▄▄▄█ █ ▄ █ █▄▄▄█ █
+  █▄▄▄▄▄▄▄█ ▀ █▄▄▄▄▄▄▄█
+  ▀▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▀
 
-Scan above QR code with Expo Go
-Press 'w' to open web
+› Press s │ switch to Expo Go
+› Press a │ open Android
+› Press w │ open web
+
+› Press j │ open debugger
+› Press r │ reload app
+› Press m │ toggle menu
 ```
 
-### Option 2: Open in Expo Go
+## Step 5: Open the App on Your Device
+
+### Using Expo Go (Easiest Method)
 
 1. Open **Expo Go** app on your phone
-2. Scan the QR code from terminal
-3. Wait for bundle to load (first time: 1-2 minutes)
-4. App opens on your device
+2. **Android:** Scan the QR code using Expo Go app
+3. **iOS:** Use your camera app to scan QR code, then tap "Open in Expo Go"
+4. Wait for bundle to load (first time: 1-2 minutes)
+5. App will open automatically
+
+**Troubleshooting Connection Issues:**
+
+- Make sure your phone and computer are on the **same Wi-Fi network**
+- If QR scan doesn't work, press **`s`** in terminal and use the URL shown
+- On some networks, you may need to use **tunnel mode**: `npm start -- --tunnel`
+
+### Using Android Emulator (Optional)
+
+1. Install Android Studio
+2. Set up an Android Virtual Device (AVD)
+3. Start the emulator
+4. In the Expo terminal, press **`a`**
+
+### Using iOS Simulator (Mac Only)
+
+1. Install Xcode from Mac App Store
+2. In the Expo terminal, press **`i`**
 
 ## Testing Offline-First Features
 
@@ -75,7 +165,51 @@ Press 'w' to open web
 3. Reopen while **offline**
 4. ✅ You're still logged in - **Token cached!**
 
-## Troubleshooting
+## Step 6: Create Your First Account
+
+1. In the app, tap **"Register"**
+2. Fill in:
+   - Username (e.g., "john_doe")
+   - Email (must be valid for verification)
+   - Password (min 6 characters)
+   - Confirm Password
+   - Contact Number
+   - Select your District
+3. Tap **"Register"**
+4. Check your email for verification code (check spam folder)
+5. Enter the OTP code
+6. You're in! 🎉
+
+## Step 7: Test the App
+
+### Test Offline Features
+
+1. **Enable Airplane Mode** on your device
+2. Tap **"+ Report New Incident"**
+3. Select incident type, severity, and location
+4. Tap **"Submit"**
+5. ✅ Incident saved locally
+6. Turn off Airplane Mode
+7. ✅ App automatically syncs to Firebase
+
+### Test Aid Requests
+
+1. Tap **"+ Request Aid"**
+2. Select aid types needed (Food, Water, Medical, etc.)
+3. Fill in your details
+4. Submit request
+5. ✅ Request visible in the Aid Requests tab
+
+## Common Issues & Solutions
+
+### Issue: "Dependencies not installed"
+
+**Solution:**
+
+```bash
+rm -rf node_modules
+npm install
+```
 
 ### Issue: "Metro bundler failed"
 
@@ -85,77 +219,109 @@ Press 'w' to open web
 npm start --clear
 ```
 
-This clears the cache and rebuilds the bundle.
+### Issue: "Cannot connect to device"
 
-### Issue: "Cannot find module 'expo-sqlite'"
+**Solutions:**
 
-**Solution:** Restart Expo server and reload:
+1. Make sure phone and computer are on same Wi-Fi
+2. Try tunnel mode: `npm start -- --tunnel`
+3. Check firewall isn't blocking port 8081
 
-```bash
-npm start
-# Then press 'c' in terminal to clear cache
-```
+### Issue: "Firebase errors"
 
-### Issue: "Database initialization error"
+**Solutions:**
 
-**Solution:** Check that permissions are granted:
+1. Verify Firebase config in `src/config/firebase.ts`
+2. Enable Authentication, Firestore, and Storage in Firebase Console
+3. Check Firebase rules allow read/write
 
-- On Android: Allow "Files" access
-- On iOS: Check app sandbox settings
+### Issue: "App crashes on startup"
 
-### Issue: Sync not working while online
+**Solutions:**
 
-**Solution:**
+1. Clear cache: `npm start -- --clear`
+2. Check you've installed all dependencies
+3. Check terminal for error messages
 
-1. Check internet connection is active
-2. Verify API_BASE_URL in `src/constants/config.ts`
-3. Make sure backend server is running
+### Issue: "QR code not scanning"
 
-## API Server Configuration
+**Solutions:**
 
-Edit `src/constants/config.ts`:
+1. Make sure Expo Go app is up to date
+2. Try manually typing the URL shown in terminal
+3. Use tunnel mode if on corporate network
 
-```typescript
-// For local development:
-export const API_BASE_URL = "http://localhost:3000/api";
+## Building for Production
 
-// For testing on device (replace with your IP):
-export const API_BASE_URL = "http://192.168.1.100:3000/api";
-```
-
-**To find your computer's IP:**
+### Build Android APK
 
 ```bash
-# Windows
-ipconfig | findstr IPv4
-
-# Mac/Linux
-ifconfig | grep inet
+npx eas build -p android --profile preview
 ```
 
-## App Screens
+This creates an APK file you can install on any Android device.
 
-### Login Screen
+### Build for iOS
 
-- Enter username and password
-- Token saved to secure storage (expo-secure-store)
+```bash
+npx eas build -p ios --profile preview
+```
 
-### Home Screen
+Requires Apple Developer account ($99/year).
 
-- Shows all incidents created
-- **Total Incidents** count
-- **Pending Sync** count (incidents waiting to upload)
-- **Online/Offline** status badge
-- **Sync Now** button for manual sync
-- List of all incidents with their status
+## App Features
 
-### Incident Form Screen
+### 📱 Main Features
 
-- **Incident Type** dropdown (Landslide, Flood, etc.)
-- **Severity** slider (1-5)
-- **GPS Location** (auto-detected)
-- Online/Offline indicator
-- Shows "Saved Locally" message when created
+- **Report Incidents** - Landslides, floods, trapped civilians, etc.
+- **Request Aid** - Food, water, medical supplies, shelter
+- **View Camps** - Find nearby detention camps
+- **Volunteer** - Register as a volunteer helper
+- **Offline-First** - Works without internet, syncs when online
+- **Real-time Updates** - See incident status updates from dashboard
+
+### 🔐 User Roles
+
+- **Citizens** - Report incidents and request aid
+- **Volunteers** - Respond to incidents
+- **Admins** - Manage all data via web dashboard (not in mobile app)
+
+### 📍 Screens Overview
+
+**Home Screen:**
+
+- View all incidents and aid requests
+- See sync status (Online/Offline)
+- Manual sync button
+- Quick access to all features
+
+**Report Incident:**
+
+- Select incident type
+- Add photos (up to 5)
+- Set severity level (1-5)
+- GPS location auto-detected
+- Works offline
+
+**Request Aid:**
+
+- Select multiple aid types
+- Set priority level
+- Add contact details
+- Describe your situation
+
+**View Camps:**
+
+- See all detention camps
+- Filter by status
+- View facilities available
+- Get directions
+
+**Volunteer:**
+
+- Register as volunteer
+- Select skills and availability
+- Emergency contact details
 
 ## Database Inspection
 
@@ -175,21 +341,46 @@ Then import and use in your app for debugging.
 # Coming soon in future Expo versions
 ```
 
-## Stopping the Server
+## Development Workflow
+
+### Making Changes
+
+1. Edit files in `src/` folder
+2. Save the file
+3. App automatically reloads on your device
+4. See changes instantly (Hot Reload)
+
+### Debugging
+
+Press **`j`** in terminal to open debugger, or:
+- Shake your device
+- Tap "Debug Remote JS"
+- Chrome DevTools will open
+
+### Version Control
 
 ```bash
-# In terminal, press Ctrl+C
+# Check status
+git status
+
+# Commit changes
+git add .
+git commit -m "Add new feature"
+
+# Push to your fork
+git push origin main
+
+# Keep fork updated
+git remote add upstream https://github.com/ORIGINAL-REPO/APIIT-HACK.git
+git fetch upstream
+git merge upstream/main
 ```
 
-## Next Steps
+## Stopping the Server
 
-1. ✅ Test all offline-first features
-2. ✅ Verify sync with your backend
-3. ✅ Test user authentication
-4. ✅ Build APK when ready: `expo build:android`
-5. ✅ Deploy to Play Store or TestFlight
+Press **`Ctrl+C`** in the terminal to stop the development server.
 
-## File Structure
+## Project Structure
 
 ```
 src/
@@ -215,32 +406,75 @@ src/
     └── appInitializer.ts  # DB initialization
 ```
 
-## Commands Reference
+## Useful Commands
 
 ```bash
 # Start development server
 npm start
 
-# Start with specific platform
-npm run android    # Android emulator
-npm run ios        # iOS simulator
-npm run web        # Web browser
+# Start with cache cleared
+npm start -- --clear
 
-# Type checking
+# Start with tunnel (for corporate networks)
+npm start -- --tunnel
+
+# Run on Android emulator
+npm run android
+
+# Run on iOS simulator (Mac only)
+npm run ios
+
+# Build for production
+npx eas build -p android --profile preview
+npx eas build -p ios --profile preview
+
+# Check for TypeScript errors
 npx tsc --noEmit
 
-# Clean build
-npm start --clear
+# Install a new package
+npm install package-name
 ```
 
-## Support
+## Environment Setup (Optional)
 
-For issues or questions:
+Create a `.env` file in the root directory:
 
-1. Check the `REFACTORING_COMPLETE.md` file for detailed documentation
-2. Review error logs in Expo terminal
-3. Check database status with sync listener logs
+```env
+FIREBASE_API_KEY=your-api-key
+FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+FIREBASE_PROJECT_ID=your-project-id
+```
+
+Then update `src/config/firebase.ts` to read from environment variables.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make your changes
+4. Test thoroughly
+5. Commit: `git commit -m "Add feature"`
+6. Push: `git push origin feature-name`
+7. Create a Pull Request
+
+## Resources
+
+- **Expo Documentation:** https://docs.expo.dev
+- **React Native Docs:** https://reactnative.dev
+- **Firebase Docs:** https://firebase.google.com/docs
+- **TypeScript Docs:** https://www.typescriptlang.org/docs
+
+## Getting Help
+
+- Check the **Issues** tab on GitHub
+- Read existing documentation in the repo
+- Ask questions in GitHub Discussions
+- Contact the maintainers
+
+## License
+
+Check the LICENSE file in the repository.
 
 ---
 
-**Happy testing!** 🚀
+**Happy coding!** 🚀 Built with ❤️ for disaster response in Sri Lanka.

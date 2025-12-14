@@ -1,6 +1,6 @@
-import * as ImagePicker from 'expo-image-picker';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { Paths, Directory, File } from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
 
 /**
  * ImageService
@@ -71,7 +71,7 @@ export class ImageService {
       const hasPermission = await this.requestCameraPermissions();
       if (!hasPermission) {
         console.warn('Camera permission not granted');
-        return null;
+        throw new Error('Camera permission not granted');
       }
 
       const result = await ImagePicker.launchCameraAsync({
@@ -86,9 +86,9 @@ export class ImageService {
       }
 
       return result.assets[0].uri;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error capturing photo:', error);
-      return null;
+      throw new Error(error.message || 'Failed to capture photo');
     }
   }
 
@@ -101,7 +101,7 @@ export class ImageService {
       const hasPermission = await this.requestMediaLibraryPermissions();
       if (!hasPermission) {
         console.warn('Media library permission not granted');
-        return null;
+        throw new Error('Gallery permission not granted');
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -116,9 +116,9 @@ export class ImageService {
       }
 
       return result.assets[0].uri;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error picking image:', error);
-      return null;
+      throw new Error(error.message || 'Failed to pick image');
     }
   }
 
@@ -156,9 +156,9 @@ export class ImageService {
         size,
         quality: 'low',
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error compressing to low quality:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to compress image to low quality');
     }
   }
 
@@ -196,9 +196,9 @@ export class ImageService {
         size,
         quality: 'high',
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error compressing to high quality:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to compress image to high quality');
     }
   }
 
@@ -234,9 +234,9 @@ export class ImageService {
 
       console.log(`✓ Image saved locally: ${quality} - ${filename}`);
       return destinationFile.uri;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving image locally:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to save image locally');
     }
   }
 

@@ -109,9 +109,9 @@ export class ImageSyncService {
 
       console.log('✅ Image processed and saved locally');
       return localUri;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to process image:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to process image for incident');
     }
   }
 
@@ -218,21 +218,27 @@ export class ImageSyncService {
       // Compress to low quality
       const compressed = await imageService.compressToLowQuality(
         localImageUri
-      );
+      ).catch((err) => {
+        throw new Error('Failed to compress image: ' + err.message);
+      });
 
       // Save low-quality version locally
       const lowQualityUri = await imageService.saveImageLocally(
         compressed.uri,
         incident.id,
         'low'
-      );
+      ).catch((err) => {
+        throw new Error('Failed to save compressed image: ' + err.message);
+      });
 
       // Upload to Firebase Storage
       const downloadUrl = await FirebaseStorageService.uploadWithRetry(
         lowQualityUri,
         incident.id,
         'low'
-      );
+      ).catch((err) => {
+        throw new Error('Network upload failed: ' + err.message);
+      });
 
       // Update database (update first image in arrays)
       await dbService.updateIncidentImage(incident.id, {
@@ -283,21 +289,27 @@ export class ImageSyncService {
       // Compress to high quality
       const compressed = await imageService.compressToHighQuality(
         localImageUri
-      );
+      ).catch((err) => {
+        throw new Error('Failed to compress image: ' + err.message);
+      });
 
       // Save high-quality version locally
       const highQualityUri = await imageService.saveImageLocally(
         compressed.uri,
         incident.id,
         'high'
-      );
+      ).catch((err) => {
+        throw new Error('Failed to save compressed image: ' + err.message);
+      });
 
       // Upload to Firebase Storage
       const downloadUrl = await FirebaseStorageService.uploadWithRetry(
         highQualityUri,
         incident.id,
         'high'
-      );
+      ).catch((err) => {
+        throw new Error('Network upload failed: ' + err.message);
+      });
 
       // Update database (update first image in arrays)
       await dbService.updateIncidentImage(incident.id, {

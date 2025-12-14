@@ -46,7 +46,7 @@ export interface Volunteer {
   user_email: string;
   full_name: string;
   phone_number: string;
-  district: string; // Sri Lankan district
+  district: string; // JSON string array of preferred districts
   skills: string; // JSON string array
   availability: string; // e.g., "Weekdays", "Weekends", "Anytime"
   preferred_tasks: string; // JSON string array

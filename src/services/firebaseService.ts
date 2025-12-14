@@ -586,6 +586,29 @@ class FirebaseService {
     }
   }
 
+  /**
+   * UPDATE: Update user email verification status
+   */
+  async updateUserEmailVerified(userId: number, emailVerified: boolean): Promise<void> {
+    try {
+      const userRef = doc(db, this.usersCollection, userId.toString());
+      
+      await withTimeout(
+        updateDoc(userRef, {
+          emailVerified,
+          updated_at: Date.now(),
+        }),
+        8000,
+        'Update email verified status'
+      );
+
+      console.log(`✓ User ${userId} emailVerified status updated to ${emailVerified}`);
+    } catch (error) {
+      console.error('Error updating email verified status:', error);
+      throw error;
+    }
+  }
+
   // ===== DETENTION CAMP METHODS =====
 
   /**
@@ -751,6 +774,7 @@ class FirebaseService {
             user_email: volunteer.user_email,
             full_name: volunteer.full_name,
             phone_number: volunteer.phone_number,
+            district: volunteer.district, // JSON string array of preferred districts
             skills: volunteer.skills, // JSON string
             availability: volunteer.availability,
             preferred_tasks: volunteer.preferred_tasks, // JSON string
@@ -797,6 +821,7 @@ class FirebaseService {
           user_email: data.user_email,
           full_name: data.full_name,
           phone_number: data.phone_number,
+          district: data.district,
           skills: data.skills,
           availability: data.availability,
           preferred_tasks: data.preferred_tasks,

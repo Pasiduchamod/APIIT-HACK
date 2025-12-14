@@ -1,20 +1,23 @@
 import { Picker } from '@react-native-picker/picker';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { generateOTP, sendOTPEmail, storeOTP, validateEmail, verifyOTP } from '../services/otpService';
+
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
 
 const SRI_LANKA_DISTRICTS = [
   'Select District',
@@ -58,131 +61,122 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
   const [contactNumber, setContactNumber] = useState('');
   const [district, setDistrict] = useState('Select District');
   const [isLoading, setIsLoading] = useState(false);
-  const [showOTPInput, setShowOTPInput] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [sentOTP, setSentOTP] = useState('');
   const { register } = useAuth();
 
-  const handleSendOTP = async () => {
+  const handleRegister = async () => {
     // Validation
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter your name');
+      Toast.show({
+        type: 'error',
+        text1: 'Name Required',
+        text2: 'Please enter your name',
+        position: 'bottom',
+      });
       return;
     }
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
+      Toast.show({
+        type: 'error',
+        text1: 'Email Required',
+        text2: 'Please enter your email',
+        position: 'bottom',
+      });
       return;
     }
     if (!validateEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      Toast.show({
+        type: 'error',
+        text1: 'Invalid Email',
+        text2: 'Please enter a valid email address',
+        position: 'bottom',
+      });
       return;
     }
     if (!username.trim()) {
-      Alert.alert('Error', 'Please enter a username');
+      Toast.show({
+        type: 'error',
+        text1: 'Username Required',
+        text2: 'Please enter a username',
+        position: 'bottom',
+      });
       return;
     }
     if (!password.trim()) {
-      Alert.alert('Error', 'Please enter a password');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Required',
+        text2: 'Please enter a password',
+        position: 'bottom',
+      });
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      Toast.show({
+        type: 'error',
+        text1: 'Weak Password',
+        text2: 'Password must be at least 6 characters long',
+        position: 'bottom',
+      });
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Mismatch',
+        text2: 'Passwords do not match',
+        position: 'bottom',
+      });
       return;
     }
     if (!contactNumber.trim()) {
-      Alert.alert('Error', 'Please enter your contact number');
+      Toast.show({
+        type: 'error',
+        text1: 'Contact Required',
+        text2: 'Please enter your contact number',
+        position: 'bottom',
+      });
       return;
     }
     if (district === 'Select District') {
-      Alert.alert('Error', 'Please select your district');
+      Toast.show({
+        type: 'error',
+        text1: 'District Required',
+        text2: 'Please select your district',
+        position: 'bottom',
+      });
       return;
     }
 
     setIsLoading(true);
     try {
-      // Generate and send OTP
-      const otp = generateOTP();
-      const sent = await sendOTPEmail(email, otp, name);
-      
-      if (sent) {
-        storeOTP(email, otp);
-        setSentOTP(otp);
-        setShowOTPInput(true);
-        Alert.alert(
-          'OTP Sent',
-          `A verification code has been sent to ${email}. Please check your email and enter the code below.`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Error', 'Failed to send verification email. Please check your email address and try again.');
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send OTP');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async () => {
-    if (!otpCode.trim()) {
-      Alert.alert('Error', 'Please enter the verification code');
-      return;
-    }
-
-    if (otpCode.length !== 6) {
-      Alert.alert('Error', 'Verification code must be 6 digits');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Verify OTP
-      const isValid = verifyOTP(email, otpCode);
-      
-      if (!isValid) {
-        Alert.alert('Error', 'Invalid or expired verification code. Please try again.');
-        setIsLoading(false);
-        return;
-      }
-
-      // OTP verified, proceed with registration
       await register({
-        name,
         email,
-        username,
         password,
+        name,
+        username,
         contactNumber,
         district,
       });
       
-      Alert.alert('Success', 'Registration successful! You can now login with your credentials.');
-      navigation.navigate('Login');
-    } catch (error: any) {
-      Alert.alert('Registration Failed', error.message || 'Could not create account');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResendOTP = async () => {
-    setIsLoading(true);
-    try {
-      const otp = generateOTP();
-      const sent = await sendOTPEmail(email, otp, name);
+      Toast.show({
+        type: 'success',
+        text1: 'Account Created!',
+        text2: 'Please check your email to verify your account',
+        position: 'bottom',
+        visibilityTime: 5000,
+      });
       
-      if (sent) {
-        storeOTP(email, otp);
-        setSentOTP(otp);
-        Alert.alert('Success', 'A new verification code has been sent to your email');
-      } else {
-        Alert.alert('Error', 'Failed to resend verification email');
-      }
+      setTimeout(() => {
+        navigation.navigate('Login');
+      }, 2000);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to resend OTP');
+      Toast.show({
+        type: 'error',
+        text1: 'Registration Failed',
+        text2: error.message || 'Failed to create account. Please try again.',
+        position: 'bottom',
+        visibilityTime: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -217,7 +211,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
-            editable={!isLoading && !showOTPInput}
+            editable={!isLoading}
           />
           
           <TextInput
@@ -228,7 +222,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            editable={!isLoading && !showOTPInput}
+            editable={!isLoading}
           />
           
           <TextInput
@@ -238,7 +232,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
-            editable={!isLoading && !showOTPInput}
+            editable={!isLoading}
           />
           
           <TextInput
@@ -248,7 +242,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            editable={!isLoading && !showOTPInput}
+            editable={!isLoading}
           />
           
           <TextInput
@@ -258,7 +252,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
-            editable={!isLoading && !showOTPInput}
+            editable={!isLoading}
           />
           
           <TextInput
@@ -268,7 +262,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             value={contactNumber}
             onChangeText={setContactNumber}
             keyboardType="phone-pad"
-            editable={!isLoading && !showOTPInput}
+            editable={!isLoading}
           />
           
           <View style={styles.pickerWrapper}>
@@ -277,7 +271,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                 selectedValue={district}
                 onValueChange={(itemValue) => setDistrict(itemValue)}
                 style={styles.picker}
-                enabled={!isLoading && !showOTPInput}
+                enabled={!isLoading}
               >
                 {SRI_LANKA_DISTRICTS.map((dist) => (
                   <Picker.Item 
@@ -291,55 +285,17 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             </View>
           </View>
 
-          {showOTPInput && (
-            <View style={styles.otpContainer}>
-              <Text style={styles.otpLabel}>Enter Verification Code</Text>
-              <Text style={styles.otpSubtext}>We've sent a 6-digit code to {email}</Text>
-              <TextInput
-                style={styles.otpInput}
-                placeholder="000000"
-                placeholderTextColor="#666"
-                value={otpCode}
-                onChangeText={setOtpCode}
-                keyboardType="number-pad"
-                maxLength={6}
-                editable={!isLoading}
-              />
-              <TouchableOpacity
-                style={styles.resendButton}
-                onPress={handleResendOTP}
-                disabled={isLoading}
-              >
-                <Text style={styles.resendButtonText}>Resend Code</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {!showOTPInput ? (
-            <TouchableOpacity
-              style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleSendOTP}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Send Verification Code</Text>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleVerifyOTP}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Verify & Register</Text>
-              )}
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={handleRegister}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Register</Text>
+            )}
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.backButton}
@@ -406,6 +362,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 15,
     fontSize: 16,
+    color: '#000',
   },
   pickerWrapper: {
     marginBottom: 15,
@@ -414,10 +371,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 8,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
   picker: {
     height: Platform.OS === 'ios' ? 200 : 55,
     width: '100%',
+    color: '#000',
   },
   button: {
     backgroundColor: '#e94560',

@@ -37,77 +37,116 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   // Refresh incidents whenever screen comes into focus (e.g., returning from IncidentForm)
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      try {
+        loadData();
+      } catch (error) {
+        console.error('Error in useFocusEffect:', error);
+      }
     }, [])
   );
 
   useEffect(() => {
-    loadData();
+    let isMounted = true;
+    
+    const initialize = async () => {
+      try {
+        await loadData();
+      } catch (error) {
+        console.error('Error in initial loadData:', error);
+      }
+    };
+
+    initialize();
 
     let previousOnlineState = true;
 
     // Monitor network status and trigger sync when connection is restored
     const netInfoUnsubscribe = NetInfo.addEventListener(state => {
-      const isCurrentlyOnline = state.isConnected ?? false;
-      setIsOnline(isCurrentlyOnline);
-      
-      // If connection was restored (offline -> online), trigger immediate sync
-      if (!previousOnlineState && isCurrentlyOnline) {
-        console.log('🌐 Internet connection restored - syncing data...');
-        (async () => {
-          try {
-            if (dbService.isInitialized()) {
-              const result = await cloudSyncService.syncFromCloud();
-              if (result.downloaded > 0) {
-                await loadData();
-                setLastSyncTime(new Date());
-                setShowUpdateBanner(true);
-                setTimeout(() => setShowUpdateBanner(false), 3000);
+      try {
+        const isCurrentlyOnline = state.isConnected ?? false;
+        if (isMounted) {
+          setIsOnline(isCurrentlyOnline);
+        }
+        
+        // If connection was restored (offline -> online), trigger immediate sync
+        if (!previousOnlineState && isCurrentlyOnline) {
+          console.log('🌐 Internet connection restored - syncing data...');
+          (async () => {
+            try {
+              if (dbService.isInitialized()) {
+                const result = await cloudSyncService.syncFromCloud();
+                if (result.downloaded > 0 && isMounted) {
+                  await loadData();
+                  setLastSyncTime(new Date());
+                  setShowUpdateBanner(true);
+                  setTimeout(() => {
+                    if (isMounted) {
+                      setShowUpdateBanner(false);
+                    }
+                  }, 3000);
+                }
               }
+            } catch (error) {
+              console.error('Error syncing after connection restore:', error);
             }
-          } catch (error) {
-            console.error('Error syncing after connection restore:', error);
-          }
-        })();
+          })();
+        }
+        
+        previousOnlineState = isCurrentlyOnline;
+      } catch (error) {
+        console.error('Error in NetInfo listener:', error);
       }
-      
-      previousOnlineState = isCurrentlyOnline;
     });
 
     // Listen to sync status
     const handleSyncStatus = (status: string) => {
-      setSyncStatus(status);
-      if (status === 'success') {
-        loadData();
+      try {
+        if (isMounted) {
+          setSyncStatus(status);
+          if (status === 'success') {
+            loadData().catch(error => console.error('Error in handleSyncStatus loadData:', error));
+          }
+        }
+      } catch (error) {
+        console.error('Error in handleSyncStatus:', error);
       }
     };
 
-    cloudSyncService.addSyncListener(handleSyncStatus);
+    try {
+      cloudSyncService.addSyncListener(handleSyncStatus);
+    } catch (error) {
+      console.error('Error adding sync listener:', error);
+    }
 
     // Auto-refresh every 5 seconds to get Firebase updates (only when online)
     const autoRefreshInterval = setInterval(async () => {
       try {
-        if (!dbService.isInitialized()) return;
+        if (!isMounted || !dbService.isInitialized()) return;
         
         const netInfo = await NetInfo.fetch();
         if (netInfo.isConnected && netInfo.isInternetReachable) {
           const result = await cloudSyncService.syncFromCloud();
           // downloaded includes both new records and updates (e.g., actionStatus changes from dashboard)
-          if (result.downloaded > 0) {
+          if (result.downloaded > 0 && isMounted) {
             console.log(`✅ Auto-sync: ${result.downloaded} updates received from Firebase`);
             await loadData();
             setLastSyncTime(new Date());
           }
         }
       } catch (error) {
-        // Silent auto-refresh error
+        console.error('Error in auto-refresh:', error);
       }
     }, 5000); // 5 seconds
 
     return () => {
-      netInfoUnsubscribe();
-      cloudSyncService.removeSyncListener(handleSyncStatus);
-      clearInterval(autoRefreshInterval);
+      isMounted = false;
+      try {
+        netInfoUnsubscribe();
+        cloudSyncService.removeSyncListener(handleSyncStatus);
+        clearInterval(autoRefreshInterval);
+      } catch (error) {
+        console.error('Error in cleanup:', error);
+      }
     };
   }, []);
 
@@ -115,24 +154,40 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     try {
       // Check if database is initialized before attempting to load
       if (!dbService.isInitialized()) {
+        console.log('Database not initialized yet');
         return;
       }
 
-      // Load incidents
-      const allIncidents = await cloudSyncService.getAllLocalIncidents();
-      setIncidents(allIncidents);
+      // Load incidents with individual error handling
+      try {
+        const allIncidents = await cloudSyncService.getAllLocalIncidents();
+        setIncidents(allIncidents || []);
+      } catch (error) {
+        console.error('Error loading incidents:', error);
+        setIncidents([]);
+      }
 
       // Load aid requests
-      const allAidRequests = await dbService.getAllAidRequests();
-      setAidRequests(allAidRequests);
+      try {
+        const allAidRequests = await dbService.getAllAidRequests();
+        setAidRequests(allAidRequests || []);
+      } catch (error) {
+        console.error('Error loading aid requests:', error);
+        setAidRequests([]);
+      }
 
       // Calculate total unsynced count
-      const incidentPendingCount = await cloudSyncService.getPendingCount();
-      const aidRequestPendingCount = await dbService.getPendingAidRequestsCount();
-      const campPendingCount = await dbService.getPendingDetentionCampsCount();
-      setUnsyncedCount(incidentPendingCount + aidRequestPendingCount + campPendingCount);
+      try {
+        const incidentPendingCount = await cloudSyncService.getPendingCount();
+        const aidRequestPendingCount = await dbService.getPendingAidRequestsCount();
+        const campPendingCount = await dbService.getPendingDetentionCampsCount();
+        setUnsyncedCount(incidentPendingCount + aidRequestPendingCount + campPendingCount);
+      } catch (error) {
+        console.error('Error counting unsynced items:', error);
+        setUnsyncedCount(0);
+      }
     } catch (error) {
-      // Silent error
+      console.error('Error in loadData:', error);
     }
   };
 
@@ -140,20 +195,28 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     setIsRefreshing(true);
     try {
       if (isOnline) {
-        const result = await cloudSyncService.fullSync();
-        setLastSyncTime(new Date());
-        
-        // Also sync images after data sync
-        await imageSyncService.syncAllPendingImages();
-        
-        if (result.downloaded > 0) {
-          setShowUpdateBanner(true);
-          setTimeout(() => setShowUpdateBanner(false), 3000);
+        try {
+          const result = await cloudSyncService.fullSync();
+          setLastSyncTime(new Date());
+          
+          // Also sync images after data sync
+          try {
+            await imageSyncService.syncAllPendingImages();
+          } catch (imgError) {
+            console.error('Error syncing images:', imgError);
+          }
+          
+          if (result.downloaded > 0) {
+            setShowUpdateBanner(true);
+            setTimeout(() => setShowUpdateBanner(false), 3000);
+          }
+        } catch (syncError) {
+          console.error('Error in fullSync:', syncError);
         }
       }
       await loadData();
     } catch (error) {
-      // Silent refresh error
+      console.error('Error in handleRefresh:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -169,27 +232,38 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       setIsRefreshing(true);
       
       // Check for pending images first
-      const pendingIncidents = await dbService.getIncidentsWithPendingImages();
+      try {
+        const pendingIncidents = await dbService.getIncidentsWithPendingImages();
+        console.log(`Found ${pendingIncidents?.length || 0} incidents with pending images`);
+      } catch (error) {
+        console.error('Error checking pending images:', error);
+      }
       
       // Sync data first
       const result = await cloudSyncService.syncToCloud();
       setLastSyncTime(new Date());
       
       // Then sync images
-      const imageResults = await imageSyncService.syncAllPendingImages();
-      const imagesSynced = imageResults.filter(r => r.success).length;
+      let imagesSynced = 0;
+      try {
+        const imageResults = await imageSyncService.syncAllPendingImages();
+        imagesSynced = imageResults?.filter(r => r?.success).length || 0;
+      } catch (imgError) {
+        console.error('Error syncing images:', imgError);
+      }
       
       if (result.success) {
         Alert.alert(
           'Success', 
           `Synced ${result.synced} incident(s) and ${imagesSynced} image(s)`
         );
-        loadData();
+        await loadData();
       } else {
         Alert.alert('Sync Failed', result.error || 'Unknown error');
       }
     } catch (error: any) {
-      Alert.alert('Sync Error', error.message || 'Failed to sync');
+      console.error('Error in handleManualSync:', error);
+      Alert.alert('Sync Error', error?.message || 'Failed to sync');
     } finally {
       setIsRefreshing(false);
     }
@@ -207,19 +281,24 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   };
 
   const renderIncident = ({ item }: { item: Incident }) => {
-    const getActionStatusDisplay = (status?: string) => {
-      switch (status) {
-        case 'taking action':
-          return { text: 'Action In Progress', color: '#ff9800', emoji: '' };
-        case 'completed':
-          return { text: 'Completed', color: '#4caf50', emoji: '' };
-        case 'pending':
-        default:
-          return { text: 'Pending Action', color: '#999', emoji: '' };
+    try {
+      if (!item || !item.id) {
+        return null;
       }
-    };
 
-    const actionStatus = getActionStatusDisplay(item.actionStatus);
+      const getActionStatusDisplay = (status?: string) => {
+        switch (status) {
+          case 'taking action':
+            return { text: 'Action In Progress', color: '#ff9800', emoji: '' };
+          case 'completed':
+            return { text: 'Completed', color: '#4caf50', emoji: '' };
+          case 'pending':
+          default:
+            return { text: 'Pending Action', color: '#999', emoji: '' };
+        }
+      };
+
+      const actionStatus = getActionStatusDisplay(item.actionStatus);
 
     return (
       <View style={styles.incidentCard}>
@@ -247,11 +326,26 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </View>
       </View>
     );
+    } catch (error) {
+      console.error('Error rendering incident:', error, item);
+      return null;
+    }
   };
 
   const renderAidRequest = ({ item }: { item: AidRequest }) => {
-    const aidTypes = JSON.parse(item.aid_types) as string[];
-    const primaryAidType = aidTypes[0] || 'Aid Request';
+    try {
+      if (!item || !item.id) {
+        return null;
+      }
+
+      let aidTypes: string[] = [];
+      try {
+        aidTypes = JSON.parse(item.aid_types) as string[];
+      } catch (parseError) {
+        console.error('Error parsing aid_types:', parseError);
+        aidTypes = [];
+      }
+      const primaryAidType = aidTypes[0] || 'Aid Request';
     
     const getAidStatusDisplay = (status?: string) => {
       switch (status) {
@@ -277,12 +371,13 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           try {
             await cloudSyncService.syncToCloud();
           } catch (syncError) {
-            // Will retry later
+            console.error('Error syncing after marking received:', syncError);
           }
         }
         
         Alert.alert('Success', 'Aid marked as received! Thank you for confirming.');
       } catch (error) {
+        console.error('Error in handleMarkAsReceived:', error);
         Alert.alert('Error', 'Failed to update aid status');
       }
     };
@@ -335,6 +430,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </View>
       </View>
     );
+    } catch (error) {
+      console.error('Error rendering aid request:', error, item);
+      return null;
+    }
   };
 
   return (
@@ -359,7 +458,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             onPress={handleManualSync}
             disabled={!isOnline}
           >
-            <Text style={styles.syncButtonText}>↻</Text>
+            <Text style={styles.syncButtonText}>⟳</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -594,21 +693,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   syncButton: {
-    backgroundColor: '#fff',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    backgroundColor: 'transparent',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#fff',
     marginLeft: 8,
   },
   syncButtonDisabled: {
     opacity: 0.5,
   },
   syncButtonText: {
-    fontSize: 16,
+    fontSize: 22,
+    color: '#fff',
+    textAlign: 'center',
   },
   userIconButton: {
     backgroundColor: '#2196f3',
@@ -671,7 +772,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   menuItemText: {
-    color: '#333',
+    color: '#d32525ff',
     fontSize: 14,
     fontWeight: '600',
   },

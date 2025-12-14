@@ -3,15 +3,15 @@ import { Picker } from '@react-native-picker/picker';
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
@@ -389,8 +389,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', 
     borderRadius: 8,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
-  picker: { height: 52 },
+  picker: { 
+    height: 52,
+    color: '#000',
+  },
   addButton: {
     padding: 12,
     backgroundColor: '#1a1a2e',
@@ -472,6 +477,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 10,
     fontSize: 16,
+    color: '#000',
   },
   descriptionInput: {
     backgroundColor: '#fff',
@@ -480,6 +486,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     minHeight: 100,
     fontSize: 16,
+    color: '#000',
   },
   locationContainer: { 
     backgroundColor: '#fff', 
@@ -496,6 +503,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 30,
+    marginBottom: 100,
     padding: 18,
     backgroundColor: '#e94560',
     borderRadius: 8,

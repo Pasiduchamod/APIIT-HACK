@@ -1,6 +1,6 @@
-import { storage } from '../config/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { File } from 'expo-file-system';
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { storage } from '../config/firebase';
 
 /**
  * Firebase Storage configuration for incident images
@@ -61,20 +61,51 @@ export class FirebaseStorageService {
 
       // Upload file - Use fetch to get blob from local URI (React Native compatible)
       console.log(`Uploading ${quality} quality image to Firebase Storage: ${storagePath}`);
-      const response = await fetch(localUri);
-      const blob = await response.blob();
-      const snapshot = await uploadBytes(storageRef, blob, {
-        contentType: mimeType,
-      });
+      
+      let blob: Blob;
+      try {
+        const response = await fetch(localUri);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to read image file: ${response.statusText}`);
+        }
+        
+        blob = await response.blob();
+      } catch (fetchError: any) {
+        console.error('Fetch error:', fetchError);
+        throw new Error(`Failed to read local image: ${fetchError.message}`);
+      }
+      
+      try {
+        const snapshot = await uploadBytes(storageRef, blob, {
+          contentType: mimeType,
+        });
 
-      // Get download URL
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      console.log(`✓ Upload successful: ${downloadUrl}`);
+        // Get download URL
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        console.log(`✓ Upload successful: ${downloadUrl}`);
 
-      return downloadUrl;
+        return downloadUrl;
+      } catch (uploadError: any) {
+        console.error('Upload bytes error:', uploadError);
+        throw uploadError;
+      }
     } catch (error: any) {
       console.error('Firebase Storage upload error:', error);
-      throw new Error(`Upload failed: ${error.message}`);
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Upload failed';
+      if (error.code === 'storage/unauthorized') {
+        errorMessage = 'Permission denied. Please check your connection and try again.';
+      } else if (error.code === 'storage/canceled') {
+        errorMessage = 'Upload was canceled';
+      } else if (error.code === 'storage/unknown' || error.message?.includes('network')) {
+        errorMessage = 'Network error. Image saved locally and will upload when connection improves.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 

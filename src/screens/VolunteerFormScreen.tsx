@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { dbService } from '../database';
@@ -85,7 +85,7 @@ export default function VolunteerFormScreen({ navigation }: any) {
   // Form state
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [district, setDistrict] = useState('');
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedAvailability, setSelectedAvailability] = useState('');
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
@@ -93,7 +93,13 @@ export default function VolunteerFormScreen({ navigation }: any) {
   const [emergencyPhone, setEmergencyPhone] = useState('');
 
   // Check if user is logged in (allow offline user to register)
-  const isOfflineUser = user?.username === 'offline';
+  let isOfflineUser = false;
+  try {
+    isOfflineUser = user?.username === 'offline';
+  } catch (error) {
+    console.error('Error checking user status:', error);
+  }
+  
   if (!user || isOfflineUser) {
     return (
       <View style={styles.container}>
@@ -114,19 +120,39 @@ export default function VolunteerFormScreen({ navigation }: any) {
     );
   }
 
+  const toggleDistrict = (district: string) => {
+    try {
+      if (selectedDistricts.includes(district)) {
+        setSelectedDistricts(selectedDistricts.filter(d => d !== district));
+      } else {
+        setSelectedDistricts([...selectedDistricts, district]);
+      }
+    } catch (error) {
+      console.error('Error toggling district:', error);
+    }
+  };
+
   const toggleSkill = (skill: string) => {
-    if (selectedSkills.includes(skill)) {
-      setSelectedSkills(selectedSkills.filter(s => s !== skill));
-    } else {
-      setSelectedSkills([...selectedSkills, skill]);
+    try {
+      if (selectedSkills.includes(skill)) {
+        setSelectedSkills(selectedSkills.filter(s => s !== skill));
+      } else {
+        setSelectedSkills([...selectedSkills, skill]);
+      }
+    } catch (error) {
+      console.error('Error toggling skill:', error);
     }
   };
 
   const toggleTask = (task: string) => {
-    if (selectedTasks.includes(task)) {
-      setSelectedTasks(selectedTasks.filter(t => t !== task));
-    } else {
-      setSelectedTasks([...selectedTasks, task]);
+    try {
+      if (selectedTasks.includes(task)) {
+        setSelectedTasks(selectedTasks.filter(t => t !== task));
+      } else {
+        setSelectedTasks([...selectedTasks, task]);
+      }
+    } catch (error) {
+      console.error('Error toggling task:', error);
     }
   };
 
@@ -139,8 +165,8 @@ export default function VolunteerFormScreen({ navigation }: any) {
       Alert.alert('Validation Error', 'Please enter your phone number');
       return false;
     }
-    if (!district) {
-      Alert.alert('Validation Error', 'Please select your district');
+    if (selectedDistricts.length === 0) {
+      Alert.alert('Validation Error', 'Please select at least one preferred district');
       return false;
     }
     if (selectedSkills.length === 0) {
@@ -159,13 +185,21 @@ export default function VolunteerFormScreen({ navigation }: any) {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
-
-    setLoading(true);
     try {
+      if (!validateForm()) return;
+
+      setLoading(true);
+      
       // Check if user already registered
-      const existing = await dbService.getVolunteerByEmail(user.username);
+      let existing = null;
+      try {
+        existing = await dbService.getVolunteerByEmail(user.username);
+      } catch (checkError) {
+        console.error('Error checking existing volunteer:', checkError);
+      }
+      
       if (existing) {
+        setLoading(false);
         Alert.alert(
           'Already Registered',
           'You have already registered as a volunteer. Your registration is pending approval.',
@@ -175,36 +209,47 @@ export default function VolunteerFormScreen({ navigation }: any) {
       }
 
       // Create volunteer registration
-      const volunteer: Omit<Volunteer, 'created_at' | 'updated_at'> = {
-        id: `vol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        user_email: user.username,
-        full_name: fullName.trim(),
-        phone_number: phoneNumber.trim(),
-        district: district,
-        skills: JSON.stringify(selectedSkills),
-        availability: selectedAvailability,
-        preferred_tasks: JSON.stringify(selectedTasks),
-        emergency_contact: emergencyContact.trim() || undefined,
-        emergency_phone: emergencyPhone.trim() || undefined,
-        status: 'pending',
-        approved: false,
-      };
+      try {
+        const volunteer: Omit<Volunteer, 'created_at' | 'updated_at'> = {
+          id: `vol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          user_email: user?.username || '',
+          full_name: fullName.trim(),
+          phone_number: phoneNumber.trim(),
+          district: JSON.stringify(selectedDistricts),
+          skills: JSON.stringify(selectedSkills),
+          availability: selectedAvailability,
+          preferred_tasks: JSON.stringify(selectedTasks),
+          emergency_contact: emergencyContact.trim() || undefined,
+          emergency_phone: emergencyPhone.trim() || undefined,
+          status: 'pending',
+          approved: false,
+        };
 
-      await dbService.createVolunteer(volunteer);
+        await dbService.createVolunteer(volunteer);
 
-      // Trigger immediate sync to Firebase
-      console.log('📤 Syncing volunteer registration to Firebase...');
-      cloudSyncService.syncToCloud().then((result) => {
-        console.log(`✓ Volunteer sync complete: ${result.synced} uploaded`);
-      }).catch((err) => {
-        console.error('Volunteer sync error:', err);
-      });
+        // Trigger immediate sync to Firebase
+        console.log('📤 Syncing volunteer registration to Firebase...');
+        cloudSyncService.syncToCloud().then((result) => {
+          console.log(`✓ Volunteer sync complete: ${result.synced} uploaded`);
+        }).catch((err) => {
+          console.error('Volunteer sync error:', err);
+        });
 
-      Alert.alert(
-        'Registration Successful',
-        'Thank you for volunteering! Your registration has been submitted and is pending admin approval. You will be notified once approved.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+        Alert.alert(
+          'Registration Successful',
+          'Thank you for volunteering! Your registration has been submitted and is pending admin approval. You will be notified once approved.',
+          [{ text: 'OK', onPress: () => {
+            try {
+              navigation.goBack();
+            } catch (navError) {
+              console.error('Navigation error:', navError);
+            }
+          }}]
+        );
+      } catch (createError) {
+        console.error('Error creating volunteer:', createError);
+        throw createError;
+      }
     } catch (error) {
       console.error('Error submitting volunteer registration:', error);
       Alert.alert('Error', 'Failed to submit registration. Please try again.');
@@ -246,21 +291,22 @@ export default function VolunteerFormScreen({ navigation }: any) {
             keyboardType="phone-pad"
           />
 
-          <Text style={styles.label}>District *</Text>
+          <Text style={styles.label}>Preferred Volunteer Districts * (Select all that apply)</Text>
+          <Text style={styles.helperText}>Select districts where you are willing to volunteer</Text>
           <View style={styles.chipsContainer}>
             {SRI_LANKA_DISTRICTS.map(dist => (
               <TouchableOpacity
                 key={dist}
                 style={[
                   styles.chip,
-                  district === dist && styles.chipSelected,
+                  selectedDistricts.includes(dist) && styles.chipSelected,
                 ]}
-                onPress={() => setDistrict(dist)}
+                onPress={() => toggleDistrict(dist)}
               >
                 <Text
                   style={[
                     styles.chipText,
-                    district === dist && styles.chipTextSelected,
+                    selectedDistricts.includes(dist) && styles.chipTextSelected,
                   ]}
                 >
                   {dist}
@@ -460,6 +506,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginTop: 12,
   },
+  helperText: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
   input: {
     backgroundColor: '#f9f9f9',
     borderWidth: 1,
@@ -500,6 +552,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 16,
+    marginBottom: 100,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

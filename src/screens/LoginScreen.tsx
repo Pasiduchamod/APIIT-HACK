@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Image,
     KeyboardAvoidingView,
     Platform,
@@ -10,8 +9,9 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LoginScreenProps {
@@ -36,16 +36,51 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter username and password');
+      Toast.show({
+        type: 'error',
+        text1: 'Missing Information',
+        text2: 'Please enter username and password',
+        position: 'bottom',
+      });
       return;
     }
 
     setIsLoading(true);
     try {
       await login(username, password);
+      Toast.show({
+        type: 'success',
+        text1: 'Login Successful',
+        text2: 'Welcome back!',
+        position: 'bottom',
+        visibilityTime: 2000,
+      });
       // Navigation handled by AuthContext state change
     } catch (error: any) {
-      Alert.alert('Login Failed', error.message || 'Invalid credentials');
+      // Show specific error messages as toast
+      let errorTitle = 'Login Failed';
+      let errorMessage = 'Please check your credentials';
+      
+      if (error.message?.includes('email')) {
+        errorTitle = 'Email Not Verified';
+        errorMessage = error.message;
+      } else if (error.message?.includes('password') || error.message?.includes('Invalid')) {
+        errorTitle = 'Invalid Credentials';
+        errorMessage = 'Username or password is incorrect';
+      } else if (error.message?.includes('network') || error.message?.includes('connection')) {
+        errorTitle = 'Connection Error';
+        errorMessage = 'Please check your internet connection';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Toast.show({
+        type: 'error',
+        text1: errorTitle,
+        text2: errorMessage,
+        position: 'bottom',
+        visibilityTime: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -192,6 +227,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 15,
     fontSize: 16,
+    color: '#000',
   },
   button: {
     backgroundColor: '#e94560',

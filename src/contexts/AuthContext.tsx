@@ -95,8 +95,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (userData: RegisterData) => {
     try {
-      const response = await AuthService.register(userData);
-      setUser(response.user);
+      // Register user but don't log them in until email is verified
+      await AuthService.register(userData);
+      // Don't set user - they need to verify email first
+      console.log('✓ Registration complete - user must verify email before login');
     } catch (error) {
       throw error;
     }

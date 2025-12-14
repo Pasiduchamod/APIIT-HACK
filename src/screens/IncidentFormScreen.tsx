@@ -163,7 +163,12 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
 
   const handleCapturePhoto = async () => {
     if (imageUris.length >= MAX_IMAGES) {
-      Alert.alert('Limit Reached', `You can only add up to ${MAX_IMAGES} images.`);
+      Toast.show({
+        type: 'info',
+        text1: 'Limit Reached',
+        text2: `You can only add up to ${MAX_IMAGES} images.`,
+        position: 'bottom',
+      });
       return;
     }
 
@@ -171,16 +176,32 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
       const uri = await imageService.capturePhoto();
       if (uri) {
         setImageUris(prev => [...prev, uri]);
+        Toast.show({
+          type: 'success',
+          text1: 'Photo captured',
+          text2: 'Image added successfully',
+          position: 'bottom',
+          visibilityTime: 2000,
+        });
       }
-    } catch (error) {
-      console.error('Error capturing photo:', error);
-      Alert.alert('Error', 'Failed to capture photo.');
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Camera Error',
+        text2: error.message || 'Failed to capture photo',
+        position: 'bottom',
+      });
     }
   };
 
   const handlePickImage = async () => {
     if (imageUris.length >= MAX_IMAGES) {
-      Alert.alert('Limit Reached', `You can only add up to ${MAX_IMAGES} images.`);
+      Toast.show({
+        type: 'info',
+        text1: 'Limit Reached',
+        text2: `You can only add up to ${MAX_IMAGES} images.`,
+        position: 'bottom',
+      });
       return;
     }
 
@@ -188,10 +209,21 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
       const uri = await imageService.pickImage();
       if (uri) {
         setImageUris(prev => [...prev, uri]);
+        Toast.show({
+          type: 'success',
+          text1: 'Image selected',
+          text2: 'Image added successfully',
+          position: 'bottom',
+          visibilityTime: 2000,
+        });
       }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image.');
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Gallery Error',
+        text2: error.message || 'Failed to pick image',
+        position: 'bottom',
+      });
     }
   };
 
@@ -268,18 +300,25 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
                     'high'
                   );
 
-                  // Upload to Firebase Storage
-                  const downloadUrl = await FirebaseStorageService.uploadWithRetry(
+                  // Upload to Firebase Storage with timeout protection
+                  const uploadPromise = FirebaseStorageService.uploadWithRetry(
                     compressedUri,
                     `${incidentId}_img${i}`,
                     'high'
                   );
+                  
+                  const timeoutPromise = new Promise<string>((_, reject) => 
+                    setTimeout(() => reject(new Error('Upload timeout')), 30000)
+                  );
+                  
+                  const downloadUrl = await Promise.race([uploadPromise, timeoutPromise]);
 
                   cloudUrls.push(downloadUrl);
                   uploadStatuses.push('high_uploaded');
                   qualities.push('high');
-                } catch (uploadError) {
-                  // Keep as local only
+                } catch (uploadError: any) {
+                  console.error('Upload error for image', i, uploadError);
+                  // Keep as local only if upload fails
                   cloudUrls.push('');
                   uploadStatuses.push('local_only');
                   qualities.push('none');
@@ -290,8 +329,9 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
                 uploadStatuses.push('local_only');
                 qualities.push('none');
               }
-            } catch (imgError) {
-              // Continue with other images
+            } catch (imgError: any) {
+              console.error('Image processing error:', imgError);
+              // Continue with other images - don't show toast for each error
             }
           }
 
@@ -304,13 +344,15 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
               imageQualities: qualities,
             });
           }
-        } catch (imageError) {
+        } catch (imageError: any) {
           // Don't fail the whole submission if images fail
-          Alert.alert(
-            'Image Warning',
-            'Incident saved but some images may not have been processed.',
-            [{ text: 'OK' }]
-          );
+          Toast.show({
+            type: 'warning',
+            text1: 'Image Warning',
+            text2: 'Incident saved but some images may not have been processed.',
+            position: 'bottom',
+            visibilityTime: 4000,
+          });
         } finally {
           setIsUploadingImage(false);
         }
@@ -323,17 +365,30 @@ export default function IncidentFormScreen({ navigation }: IncidentFormScreenPro
         imageSyncService.syncAllPendingImages().catch(() => {});
       }
 
-      Alert.alert('Saved', 'Incident saved successfully.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-
-      // Reset form
-      setIncidentType('Landslide');
-      setSeverity(3);
-      setImageUris([]);
-      getCurrentLocation();
-    } catch (e) {
-      Alert.alert('Error', 'Failed to save incident.');
+      // Show success alert and navigate to home
+      Alert.alert(
+        'Success',
+        'Incident saved successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setIncidentType('Landslide');
+              setSeverity(3);
+              setImageUris([]);
+              getCurrentLocation();
+              navigation.goBack();
+            }
+          }
+        ]
+      );
+    } catch (e: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Save Failed',
+        text2: e.message || 'Failed to save incident. Please try again.',
+        position: 'bottom',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -648,6 +703,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 30,
+    marginBottom: 100,
     padding: 18,
     backgroundColor: '#e94560',
     borderRadius: 8,
@@ -677,6 +733,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderColor: '#ddd',
+    color: '#000',
   },
   textArea: {
     height: 100,

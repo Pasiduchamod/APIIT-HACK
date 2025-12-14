@@ -2,16 +2,17 @@ import NetInfo from '@react-native-community/netinfo';
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import LocationPicker from '../components/LocationPicker';
 import { dbService } from '../database/db';
 
@@ -91,27 +92,52 @@ export default function CampFormScreen({ navigation }: CampFormScreenProps) {
 
   const validateForm = (): boolean => {
     if (!name.trim()) {
-      Alert.alert('Validation Error', 'Please enter camp name');
+      Toast.show({
+        type: 'error',
+        text1: 'Validation Error',
+        text2: 'Please enter camp name',
+        position: 'bottom',
+      });
       return false;
     }
 
     if (!location) {
-      Alert.alert('Validation Error', 'Please wait for location or select camp location on the map');
+      Toast.show({
+        type: 'error',
+        text1: 'Validation Error',
+        text2: 'Please wait for location or select camp location on the map',
+        position: 'bottom',
+      });
       return false;
     }
 
     if (!capacity.trim() || isNaN(Number(capacity)) || Number(capacity) <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid capacity');
+      Toast.show({
+        type: 'error',
+        text1: 'Validation Error',
+        text2: 'Please enter a valid capacity',
+        position: 'bottom',
+      });
       return false;
     }
 
     if (isNaN(Number(currentOccupancy)) || Number(currentOccupancy) < 0) {
-      Alert.alert('Validation Error', 'Please enter a valid current occupancy');
+      Toast.show({
+        type: 'error',
+        text1: 'Validation Error',
+        text2: 'Please enter a valid current occupancy',
+        position: 'bottom',
+      });
       return false;
     }
 
     if (!facilities.trim()) {
-      Alert.alert('Validation Error', 'Please enter at least one facility (comma-separated)');
+      Toast.show({
+        type: 'error',
+        text1: 'Validation Error',
+        text2: 'Please enter at least one facility (comma-separated)',
+        position: 'bottom',
+      });
       return false;
     }
 
@@ -145,18 +171,24 @@ export default function CampFormScreen({ navigation }: CampFormScreenProps) {
 
       const campId = await dbService.addDetentionCamp(campData);
 
-      Alert.alert(
-        'Success',
-        'Camp submitted for admin approval. It will appear on the map once approved.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+      Toast.show({
+        type: 'success',
+        text1: 'Camp Submitted',
+        text2: 'Camp submitted for admin approval',
+        position: 'bottom',
+        visibilityTime: 3000,
+      });
+
+      setTimeout(() => {
+        navigation.goBack();
+      }, 1000);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to submit camp');
+      Toast.show({
+        type: 'error',
+        text1: 'Submission Failed',
+        text2: error.message || 'Failed to submit camp. Please try again.',
+        position: 'bottom',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -439,6 +471,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
+    marginBottom: 100,
   },
   submitButtonDisabled: {
     opacity: 0.6,

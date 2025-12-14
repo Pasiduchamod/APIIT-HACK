@@ -1,7 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
+import { CACHE_SIZE_UNLIMITED, initializeFirestore, setLogLevel } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+
+// Suppress Firebase Firestore debug logs (including WebChannel errors)
+// Comment out this line if you need to debug Firebase issues
+setLogLevel('error');
 
 // Firebase Configuration - Replace with your own config from Firebase Console
 // Import the functions you need from the SDKs you need
@@ -25,7 +29,7 @@ export const firebaseApp = initializeApp(firebaseConfig);
 // Initialize Firestore with offline persistence and settings
 export const db = initializeFirestore(firebaseApp, {
   cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-  experimentalForceLongPolling: true, // Better for React Native
+  experimentalForceLongPolling: true, // Better for React Native - use only this one
   ignoreUndefinedProperties: true, // Prevent crashes from undefined values
 });
 

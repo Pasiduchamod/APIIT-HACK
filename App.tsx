@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import 'react-native-get-random-values';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AidRequestFormScreen from './src/screens/AidRequestFormScreen';
 import CampFormScreen from './src/screens/CampFormScreen';
@@ -185,6 +186,7 @@ export default function App() {
       <AuthProvider>
         <StatusBar style="light" />
         <Navigation />
+        <Toast />
       </AuthProvider>
     </SafeAreaProvider>
   );
